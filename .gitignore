@@ -1,0 +1,41 @@
+# Local Python runtimes and build output
+.venv-build/
+.python314-nuget/
+.python314-src-extract/
+.pythonbuild/
+.builddeps/
+.tcl-src/
+.tk-src/
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Packaged applications and temporary runtime data
+build*/
+dist*/
+.runtime-*/
+
+# Local test and inspection artifacts
+test-data/
+test-output/
+template-inspection/
+ui-test-data/
+
+# Downloaded installers and archives
+*.nupkg
+*.zip
+*.tar.xz
+*.exe
+
+# Local app data / secrets
+settings.json
+sapo_sync.bin
+sapo_database.json
+*.db
+*.tmp
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
