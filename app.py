@@ -8,10 +8,7 @@ import unicodedata
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-<<<<<<< HEAD
 import customtkinter as ctk
-=======
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
 from PIL import Image, ImageOps, ImageTk
 
 try:
@@ -85,11 +82,7 @@ class InvoiceDesktopApp:
         self.root.title(APP_NAME)
         self.root.geometry("1320x820")
         self.root.minsize(1080, 680)
-<<<<<<< HEAD
         self.root.configure(fg_color="#F4F7FB")
-=======
-        self.root.configure(background="#F4F7FB")
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         self.config_store = ConfigStore(DATA_DIR / "settings.json")
         self.config = self.config_store.load()
         self.files = []
@@ -131,7 +124,6 @@ class InvoiceDesktopApp:
         style.map("TNotebook.Tab", background=[("selected", "#FFFFFF")], foreground=[("selected", "#123B63")])
 
     def _build(self):
-<<<<<<< HEAD
         shell = ctk.CTkFrame(self.root, fg_color="#F4F7FB", corner_radius=0)
         shell.pack(fill="both", expand=True)
         sidebar = ctk.CTkFrame(shell, fg_color="#0B1730", width=218, corner_radius=0)
@@ -177,64 +169,14 @@ class InvoiceDesktopApp:
         self.page_host.pack(fill="both", expand=True, padx=20, pady=(14, 8))
         self.invoice_tab = ctk.CTkFrame(self.page_host, fg_color="#F4F7FB", corner_radius=0)
         self.settings_tab = ctk.CTkFrame(self.page_host, fg_color="#F4F7FB", corner_radius=0)
-=======
-        shell = tk.Frame(self.root, bg="#F4F7FB")
-        shell.pack(fill="both", expand=True)
-        sidebar = tk.Frame(shell, bg="#0B1730", width=218)
-        sidebar.pack(side="left", fill="y")
-        sidebar.pack_propagate(False)
-        brand = tk.Frame(sidebar, bg="#0B1730", padx=22, pady=25)
-        brand.pack(fill="x")
-        logo_row = tk.Frame(brand, bg="#0B1730")
-        logo_row.pack(fill="x")
-        tk.Label(logo_row, text="S", bg="#1688F0", fg="#FFFFFF", width=2, font=("Segoe UI", 15, "bold"), padx=2, pady=1).pack(side="left")
-        tk.Label(logo_row, text="SAPO INVOICE", bg="#0B1730", fg="#FFFFFF", font=("Segoe UI", 12, "bold")).pack(side="left", padx=(10, 0))
-        tk.Label(brand, text="Quản lý hóa đơn nhập hàng", bg="#0B1730", fg="#8EA3BE", font=("Segoe UI", 8)).pack(anchor="w", pady=(9, 0))
-        tk.Label(sidebar, text="KHÔNG GIAN LÀM VIỆC", bg="#0B1730", fg="#617894", font=("Segoe UI", 8, "bold"), padx=22).pack(anchor="w", pady=(18, 8))
-        self.nav_buttons = {}
-        for key, text in (("invoice", "▦   Hóa đơn mới"), ("settings", "⚙   Cấu hình")):
-            button = tk.Button(
-                sidebar, text=text, command=lambda page=key: self.show_page(page),
-                bg="#0B1730", fg="#B9C7D8", activebackground="#142746", activeforeground="#FFFFFF",
-                bd=0, relief="flat", anchor="w", padx=22, pady=13,
-                font=("Segoe UI", 10, "bold"), cursor="hand2",
-            )
-            button.pack(fill="x", padx=10, pady=2)
-            self.nav_buttons[key] = button
-        sidebar_footer = tk.Frame(sidebar, bg="#0B1730", padx=22, pady=20)
-        sidebar_footer.pack(side="bottom", fill="x")
-        tk.Frame(sidebar_footer, bg="#203552", height=1).pack(fill="x", pady=(0, 14))
-        tk.Label(sidebar_footer, text="●  Máy chủ cục bộ", bg="#0B1730", fg="#55D7AC", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(sidebar_footer, text="Sapo Invoice Desktop", bg="#0B1730", fg="#7188A4", font=("Segoe UI", 8)).pack(anchor="w", pady=(3, 0))
-
-        main = tk.Frame(shell, bg="#F4F7FB")
-        main.pack(side="left", fill="both", expand=True)
-        header = tk.Frame(main, bg="#FFFFFF", padx=26, pady=15, highlightthickness=1, highlightbackground="#E3EAF2")
-        header.pack(fill="x")
-        self.page_eyebrow_var = tk.StringVar()
-        self.page_title_var = tk.StringVar()
-        self.page_subtitle_var = tk.StringVar()
-        tk.Label(header, textvariable=self.page_eyebrow_var, bg="#FFFFFF", fg="#1688F0", font=("Segoe UI", 8, "bold")).pack(anchor="w")
-        tk.Label(header, textvariable=self.page_title_var, bg="#FFFFFF", fg="#0E1B2E", font=("Segoe UI", 19, "bold")).pack(anchor="w", pady=(1, 0))
-        tk.Label(header, textvariable=self.page_subtitle_var, bg="#FFFFFF", fg="#6A7B90", font=("Segoe UI", 9)).pack(anchor="w", pady=(1, 0))
-        self.page_host = tk.Frame(main, bg="#F4F7FB")
-        self.page_host.pack(fill="both", expand=True, padx=20, pady=(14, 8))
-        self.invoice_tab = ttk.Frame(self.page_host)
-        self.settings_tab = ttk.Frame(self.page_host)
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         for page in (self.invoice_tab, self.settings_tab):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._build_invoice_tab()
         self._build_settings_tab()
 
         self.status_var = tk.StringVar()
-<<<<<<< HEAD
         status = ctk.CTkLabel(main, textvariable=self.status_var, anchor="w", fg_color="#FFFFFF", text_color="#607086", height=34, font=ctk.CTkFont("Segoe UI", 10))
         status.pack(fill="x", padx=20, pady=(0, 16))
-=======
-        status = tk.Label(main, textvariable=self.status_var, anchor="w", padx=21, pady=8, bg="#FFFFFF", fg="#607086", font=("Segoe UI", 8), highlightthickness=1, highlightbackground="#E3EAF2")
-        status.pack(fill="x")
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         self.show_page("invoice")
 
     def show_page(self, page):
@@ -250,11 +192,7 @@ class InvoiceDesktopApp:
         self.page_subtitle_var.set(subtitle)
         for key, button in self.nav_buttons.items():
             selected = key == self.active_page
-<<<<<<< HEAD
             button.configure(fg_color="#1688F0" if selected else "transparent", hover_color="#1688F0" if selected else "#142746", text_color="#FFFFFF" if selected else "#B9C7D8")
-=======
-            button.configure(bg="#1688F0" if selected else "#0B1730", fg="#FFFFFF" if selected else "#B9C7D8", activebackground="#1688F0" if selected else "#142746")
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
 
     def _build_invoice_tab(self):
         workspace = tk.PanedWindow(
@@ -262,7 +200,6 @@ class InvoiceDesktopApp:
             bg="#F4F7FB", bd=0,
         )
         workspace.pack(fill="both", expand=True)
-<<<<<<< HEAD
         left_panel = ctk.CTkFrame(workspace, fg_color="#F4F7FB", corner_radius=0)
         preview_card = ctk.CTkFrame(workspace, fg_color="#FFFFFF", corner_radius=16, border_width=1, border_color="#DCE6F0")
         workspace.add(left_panel, minsize=760, stretch="always")
@@ -292,48 +229,6 @@ class InvoiceDesktopApp:
         self.analyze_button = ctk.CTkButton(
             controls, text="Đọc lại", command=self.analyze, height=36, corner_radius=9,
             fg_color="#E8F2FC", hover_color="#D9EBFA", text_color="#264A70", font=ctk.CTkFont("Segoe UI", 11, "bold"),
-=======
-        left_panel = tk.Frame(workspace, bg="#F4F7FB")
-        preview_card = tk.Frame(
-            workspace, bg="#FFFFFF", padx=12, pady=12,
-            highlightthickness=1, highlightbackground="#DCE6F0",
-        )
-        workspace.add(left_panel, minsize=760, stretch="always")
-        workspace.add(preview_card, minsize=280, width=330, stretch="never")
-
-        upload_card = tk.Frame(
-            left_panel, bg="#FFFFFF", padx=18, pady=14,
-            highlightthickness=1, highlightbackground="#DCE6F0",
-        )
-        upload_card.pack(fill="x", pady=(0, 12))
-        upload_title = tk.Frame(upload_card, bg="#FFFFFF")
-        upload_title.pack(fill="x", pady=(0, 10))
-        tk.Label(
-            upload_title, text="HÓA ĐƠN ĐẦU VÀO", bg="#FFFFFF", fg="#1688F0",
-            font=("Segoe UI", 9, "bold"),
-        ).pack(anchor="w")
-        tk.Label(
-            upload_title, text="Chọn file để đọc tự động", bg="#FFFFFF", fg="#10213A",
-            font=("Segoe UI", 14, "bold"),
-        ).pack(anchor="w")
-
-        controls = ttk.Frame(upload_card, style="Card.TFrame")
-        controls.pack(fill="x", pady=(0, 10))
-        ttk.Button(controls, text="＋ Chọn ảnh/PDF", command=self.choose_files, style="Primary.TButton").pack(side="left")
-        ttk.Button(controls, text="Xóa danh sách", command=self.clear_files, style="Secondary.TButton").pack(side="left", padx=8)
-        ttk.Label(controls, text="Cách xử lý:", style="Card.TLabel").pack(side="left", padx=(24, 6))
-        self.mode_var = tk.StringVar(value="single_invoice")
-        ttk.Radiobutton(
-            controls, text="Một hóa đơn nhiều file", variable=self.mode_var,
-            value="single_invoice", style="Card.TRadiobutton",
-        ).pack(side="left")
-        ttk.Radiobutton(
-            controls, text="Mỗi file một hóa đơn", variable=self.mode_var,
-            value="separate_invoices", style="Card.TRadiobutton",
-        ).pack(side="left", padx=10)
-        self.analyze_button = ttk.Button(
-            controls, text="Đọc lại", command=self.analyze, style="Secondary.TButton",
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         )
         self.analyze_button.pack(side="right")
 
@@ -342,15 +237,9 @@ class InvoiceDesktopApp:
             highlightthickness=1, highlightbackground="#E2EAF2", bg="#F7FAFD",
             fg="#34495E", selectbackground="#D9ECFF",
         )
-<<<<<<< HEAD
         self.file_list.pack(fill="x", padx=18, pady=(0, 15))
 
         metrics = ctk.CTkFrame(left_panel, fg_color="transparent")
-=======
-        self.file_list.pack(fill="x")
-
-        metrics = tk.Frame(left_panel, bg="#F4F7FB")
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         metrics.pack(fill="x", pady=(0, 12))
         self.metric_files_var = tk.StringVar(value="0")
         self.metric_items_var = tk.StringVar(value="0")
@@ -363,7 +252,6 @@ class InvoiceDesktopApp:
             ("Tổng tiền nhập", self.metric_total_var, "#E43D68"),
         )
         for column, (label, variable, accent) in enumerate(metric_specs):
-<<<<<<< HEAD
             card = ctk.CTkFrame(metrics, fg_color="#FFFFFF", corner_radius=14, border_width=1, border_color="#DCE6F0")
             card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 6, 0 if column == 3 else 6))
             ctk.CTkFrame(card, fg_color=accent, height=4, corner_radius=4).pack(fill="x", padx=15, pady=(13, 10))
@@ -378,34 +266,6 @@ class InvoiceDesktopApp:
         ctk.CTkLabel(result_heading, text="KẾT QUẢ KIỂM TRA", text_color="#1688F0", font=ctk.CTkFont("Segoe UI", 10, "bold")).pack(side="left")
         self.summary_var = tk.StringVar(value="Chưa có kết quả")
         ctk.CTkLabel(result_heading, textvariable=self.summary_var, text_color="#607086", font=ctk.CTkFont("Segoe UI", 10)).pack(side="right")
-=======
-            card = tk.Frame(
-                metrics, bg="#FFFFFF", padx=16, pady=12,
-                highlightthickness=1, highlightbackground="#DCE6F0",
-            )
-            card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 6, 0 if column == 3 else 6))
-            tk.Frame(card, bg=accent, height=4).pack(fill="x", pady=(0, 10))
-            tk.Label(card, text=label, bg="#FFFFFF", fg="#718096", font=("Segoe UI", 9)).pack(anchor="w")
-            tk.Label(card, textvariable=variable, bg="#FFFFFF", fg="#10213A", font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(2, 0))
-            metrics.columnconfigure(column, weight=1)
-
-        result_card = tk.Frame(
-            left_panel, bg="#FFFFFF", padx=14, pady=12,
-            highlightthickness=1, highlightbackground="#DCE6F0",
-        )
-        result_card.pack(fill="both", expand=True)
-        result_heading = tk.Frame(result_card, bg="#FFFFFF")
-        result_heading.pack(fill="x", pady=(0, 9))
-        tk.Label(
-            result_heading, text="KẾT QUẢ KIỂM TRA", bg="#FFFFFF", fg="#1688F0",
-            font=("Segoe UI", 9, "bold"),
-        ).pack(side="left")
-        self.summary_var = tk.StringVar(value="Chưa có kết quả")
-        tk.Label(
-            result_heading, textvariable=self.summary_var, bg="#FFFFFF", fg="#607086",
-            font=("Segoe UI", 9),
-        ).pack(side="right")
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
 
         result_frame = ttk.Frame(result_card, style="Card.TFrame")
         result_frame.pack(fill="both", expand=True)
@@ -430,7 +290,6 @@ class InvoiceDesktopApp:
         self.result_tree.bind("<Double-1>", self.open_editor_from_tree_event)
         self.result_tree.bind("<Delete>", lambda _event: self.delete_selected_row())
 
-<<<<<<< HEAD
         footer = ctk.CTkFrame(result_card, fg_color="transparent")
         footer.pack(fill="x", padx=14, pady=(10, 14))
         self.auto_sync_var = tk.BooleanVar(value=self.config.get("auto_sync_on_export", True))
@@ -438,6 +297,13 @@ class InvoiceDesktopApp:
             footer, text="Đồng bộ sản phẩm và giá lên Sapo khi xuất",
             variable=self.auto_sync_var, text_color="#34495E", font=ctk.CTkFont("Segoe UI", 10),
         ).pack(side="left")
+        self.invoice_discount_value_var = tk.StringVar(value="")
+        self.invoice_discount_type_var = tk.StringVar(value="VND")
+        discount_box = ctk.CTkFrame(footer, fg_color="#F6F9FD", corner_radius=9)
+        discount_box.pack(side="left", padx=(14, 0))
+        ctk.CTkLabel(discount_box, text="Giảm giá tổng đơn", text_color="#52667C", font=ctk.CTkFont("Segoe UI", 10, "bold")).pack(side="left", padx=(10, 6), pady=5)
+        ctk.CTkEntry(discount_box, textvariable=self.invoice_discount_value_var, width=78, height=29, corner_radius=7, placeholder_text="0").pack(side="left", pady=5)
+        ctk.CTkSegmentedButton(discount_box, values=["VND", "%"], variable=self.invoice_discount_type_var, width=75, height=29, corner_radius=7).pack(side="left", padx=(5, 6), pady=5)
         ctk.CTkButton(footer, text="Sửa dòng", command=self.edit_selected, height=35, corner_radius=9, fg_color="#E8F2FC", hover_color="#D9EBFA", text_color="#264A70").pack(side="right")
         ctk.CTkButton(footer, text="Xóa dòng", command=self.delete_selected_row, height=35, corner_radius=9, fg_color="#FFF1F2", hover_color="#FFE0E4", text_color="#B42340").pack(side="right", padx=(0, 8))
         ctk.CTkButton(
@@ -465,51 +331,6 @@ class InvoiceDesktopApp:
 
         viewer = ctk.CTkFrame(preview_card, fg_color="#182231", corner_radius=12)
         viewer.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-=======
-        footer = ttk.Frame(result_card, style="Card.TFrame")
-        footer.pack(fill="x", pady=(10, 0))
-        self.auto_sync_var = tk.BooleanVar(value=self.config.get("auto_sync_on_export", True))
-        ttk.Checkbutton(
-            footer, text="Đồng bộ sản phẩm và giá lên Sapo khi xuất",
-            variable=self.auto_sync_var, style="Card.TCheckbutton",
-        ).pack(side="left")
-        ttk.Button(footer, text="Sửa dòng", command=self.edit_selected, style="Secondary.TButton").pack(side="right")
-        ttk.Button(footer, text="Xóa dòng", command=self.delete_selected_row, style="Secondary.TButton").pack(side="right", padx=(0, 8))
-        ttk.Button(
-            footer, text="XUẤT EXCEL SAPO", command=self.export_excel,
-            style="Export.TButton", width=19,
-        ).pack(side="right", padx=(0, 8))
-
-        tk.Label(
-            preview_card, text="XEM HÓA ĐƠN", bg="#FFFFFF", fg="#1688F0",
-            font=("Segoe UI", 9, "bold"),
-        ).pack(anchor="w")
-        self.preview_name_var = tk.StringVar(value="Chưa chọn file")
-        tk.Label(
-            preview_card, textvariable=self.preview_name_var, bg="#FFFFFF", fg="#10213A",
-            font=("Segoe UI", 11, "bold"), wraplength=285, justify="left",
-        ).pack(anchor="w", pady=(3, 8))
-        preview_toolbar = tk.Frame(preview_card, bg="#FFFFFF")
-        preview_toolbar.pack(fill="x", pady=(0, 7))
-        self.preview_prev_button = ttk.Button(
-            preview_toolbar, text="‹", width=3, command=lambda: self.change_preview_page(-1),
-            style="Secondary.TButton", state="disabled",
-        )
-        self.preview_prev_button.pack(side="left")
-        self.preview_page_var = tk.StringVar(value="Không có bản xem trước")
-        tk.Label(
-            preview_toolbar, textvariable=self.preview_page_var, bg="#FFFFFF", fg="#607086",
-            font=("Segoe UI", 9),
-        ).pack(side="left", expand=True)
-        self.preview_next_button = ttk.Button(
-            preview_toolbar, text="›", width=3, command=lambda: self.change_preview_page(1),
-            style="Secondary.TButton", state="disabled",
-        )
-        self.preview_next_button.pack(side="right")
-
-        viewer = tk.Frame(preview_card, bg="#182231", padx=8, pady=8)
-        viewer.pack(fill="both", expand=True)
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
         image_toolbar = tk.Frame(viewer, bg="#182231")
         image_toolbar.pack(fill="x", pady=(0, 7))
         ttk.Button(image_toolbar, text="↶", width=3, command=lambda: self.rotate_preview(90), style="Preview.TButton").pack(side="left")
@@ -640,6 +461,7 @@ class InvoiceDesktopApp:
         self.preview_zoom = 1.0
         self.preview_rotation = 0
         self.preview_fit_mode = True
+        self.preview_file_index = -1
         self.preview_name_var.set("Chưa chọn file")
         self.preview_page_var.set("Không có bản xem trước")
         self.preview_zoom_var.set("Vừa khung")
@@ -663,9 +485,9 @@ class InvoiceDesktopApp:
             return
         index = int(selected[0])
         if 0 <= index < len(self.files):
-            self.show_file_preview(self.files[index])
+            self.show_file_preview(self.files[index], file_index=index)
 
-    def show_file_preview(self, path):
+    def show_file_preview(self, path, file_index=None):
         self.close_preview_document()
         self.preview_source_image = None
         self.preview_photo = None
@@ -674,6 +496,12 @@ class InvoiceDesktopApp:
         self.preview_zoom = 1.0
         self.preview_rotation = 0
         self.preview_fit_mode = True
+        if file_index is None:
+            try:
+                file_index = self.files.index(str(path))
+            except ValueError:
+                file_index = 0
+        self.preview_file_index = file_index
         self.preview_zoom_var.set("Vừa khung")
         path = Path(path)
         self.preview_name_var.set(path.name)
@@ -689,7 +517,7 @@ class InvoiceDesktopApp:
             else:
                 with Image.open(path) as source:
                     self.preview_source_image = ImageOps.exif_transpose(source).convert("RGB").copy()
-                self.preview_page_var.set("Ảnh hóa đơn")
+                self.preview_page_var.set(f"Tệp {file_index + 1} / {len(self.files)} • Ảnh")
                 self.update_preview_navigation()
                 self.draw_preview_image()
         except Exception as exc:
@@ -709,30 +537,38 @@ class InvoiceDesktopApp:
         finally:
             page.close()
         self.preview_page_var.set(
-            f"Trang {self.preview_page_index + 1} / {self.preview_page_count}"
+            f"Tệp {self.preview_file_index + 1} / {len(self.files)} • Trang {self.preview_page_index + 1} / {self.preview_page_count}"
         )
         self.update_preview_navigation()
         self.draw_preview_image()
 
     def update_preview_navigation(self):
+        has_previous_file = self.preview_file_index > 0
+        has_next_file = self.preview_file_index < len(self.files) - 1
         has_pages = self.preview_document is not None and self.preview_page_count > 1
         self.preview_prev_button.configure(
-            state="normal" if has_pages and self.preview_page_index > 0 else "disabled"
+            state="normal" if has_previous_file or (has_pages and self.preview_page_index > 0) else "disabled"
         )
         self.preview_next_button.configure(
             state="normal"
-            if has_pages and self.preview_page_index < self.preview_page_count - 1
+            if has_next_file or (has_pages and self.preview_page_index < self.preview_page_count - 1)
             else "disabled"
         )
 
     def change_preview_page(self, offset):
-        if self.preview_document is None:
-            return
-        target = min(max(self.preview_page_index + offset, 0), self.preview_page_count - 1)
-        if target == self.preview_page_index:
-            return
-        self.preview_page_index = target
-        self.render_pdf_preview_page()
+        if self.preview_document is not None:
+            target = self.preview_page_index + offset
+            if 0 <= target < self.preview_page_count:
+                self.preview_page_index = target
+                self.render_pdf_preview_page()
+                return
+        target_file = self.preview_file_index + offset
+        if 0 <= target_file < len(self.files):
+            self.file_list.selection_clear(0, "end")
+            self.file_list.selection_set(target_file)
+            self.file_list.activate(target_file)
+            self.file_list.see(target_file)
+            self.show_file_preview(self.files[target_file], file_index=target_file)
 
     def resize_preview(self, _event=None):
         if getattr(self, "preview_source_image", None) is None:
@@ -958,7 +794,8 @@ class InvoiceDesktopApp:
         item = self.results[index]
         dialog = tk.Toplevel(self.root)
         dialog.title("Sửa kết quả")
-        dialog.geometry("760x680")
+        dialog.geometry("780x760")
+        dialog.minsize(700, 680)
         dialog.transient(self.root)
         dialog.grab_set()
         frame = ttk.Frame(dialog, padding=18)
@@ -1079,7 +916,7 @@ class InvoiceDesktopApp:
             self.refresh_results()
 
         save_button = ttk.Button(frame, text="LƯU THAY ĐỔI", command=save, style="Primary.TButton")
-        save_button.grid(row=12, column=1, sticky="e", pady=20)
+        save_button.grid(row=12, column=1, sticky="se", pady=(18, 4))
         def save_with_enter(event):
             if isinstance(event.widget, ttk.Button):
                 return None
@@ -1093,6 +930,7 @@ class InvoiceDesktopApp:
         save_button.bind("<KP_Enter>", lambda _event: (save(), "break")[1])
         dialog.bind("<Escape>", lambda _event: dialog.destroy())
         frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(11, weight=1)
         target = editable_entries.get(focus_field)
         if target:
             dialog.after(120, lambda: (target.focus_set(), target.selection_range(0, "end")))
@@ -1218,6 +1056,26 @@ class InvoiceDesktopApp:
         groups = {}
         for item in self.results:
             groups.setdefault(int(item.get("invoice_index", 0)), []).append(item)
+        raw_discount = self.invoice_discount_value_var.get().strip()
+        if raw_discount:
+            try:
+                discount_value = parse_user_number(raw_discount)
+            except ValueError:
+                return messagebox.showwarning(APP_NAME, "Giảm giá tổng đơn phải là một số hợp lệ.")
+            discount_type = self.invoice_discount_type_var.get()
+            if discount_value < 0 or (discount_type == "%" and discount_value > 100):
+                return messagebox.showwarning(APP_NAME, "Giảm giá không hợp lệ. Phần trăm phải từ 0 đến 100.")
+            if self.mode_var.get() == "separate_invoices" and len(groups) > 1:
+                return messagebox.showwarning(
+                    APP_NAME,
+                    "Bạn đang xuất nhiều hóa đơn riêng. Hãy xuất từng hóa đơn nếu cần nhập giảm giá tổng đơn khác nhau.",
+                )
+            for group in groups.values():
+                for item in group:
+                    summary = dict(item.get("invoice_summary") or {})
+                    summary["manual_discount_value"] = discount_value
+                    summary["manual_discount_type"] = discount_type
+                    item["invoice_summary"] = summary
         product_updates_required = any(
             item.get("new_product")
             or
@@ -1266,7 +1124,7 @@ class InvoiceDesktopApp:
                     return messagebox.showerror(APP_NAME, f"Không tạo được file cập nhật sản phẩm: {exc}")
             for position, group in enumerate(groups.values(), start=1):
                 summary = group[0].get("invoice_summary") or {}
-                number = str(summary.get("invoice_number") or position).replace("/", "-").replace("\\", "-")
+                number = re.sub(r"[^A-Za-z0-9_-]+", "-", str(summary.get("invoice_number") or position)).strip("-_") or str(position)
                 export_sapo_excel(
                     group, Path(folder) / f"BUOC-2-don-nhap-hang-{number}.xlsx",
                     BASE_DIR / "sapo_import_template.xlsx",
@@ -1990,13 +1848,9 @@ class InvoiceDesktopApp:
 
 
 def main():
-<<<<<<< HEAD
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
-=======
-    root = tk.Tk()
->>>>>>> 67e4a39858858e451c25a340f9b016f48e994b1a
     InvoiceDesktopApp(root)
     root.mainloop()
 

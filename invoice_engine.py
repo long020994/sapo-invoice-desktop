@@ -778,8 +778,10 @@ nếu hóa đơn không có hoặc không đọc rõ giá trị tương ứng, k
 supplier_name là tên đơn vị bán/nhà cung cấp ghi trên hóa đơn. invoice_number là số hoặc
 ký hiệu hóa đơn. invoice_date là ngày hóa đơn theo dạng YYYY-MM-DD nếu đọc được. Ba trường
 này để null khi không có hoặc không đọc rõ, tuyệt đối không tự đoán.
-Nếu PDF có nhiều trang, không lặp lại dòng tiêu đề bảng, tổng cộng hoặc dòng hàng trùng nhau
-do nội dung đầu/cuối trang bị lặp. Không tự đoán chữ hoặc số bị che; chỉ xuất các dòng hàng đủ nhận diện.
+Nếu PDF hoặc nhiều ảnh có nhiều trang, bỏ dòng tiêu đề bảng, tổng cộng và phần đầu/cuối trang bị lặp.
+Tuy nhiên nếu cùng một mặt hàng xuất hiện ở các trang/ảnh khác nhau như các dòng bán thực tế,
+phải giữ đầy đủ tất cả các dòng để ứng dụng cộng dồn số lượng sau đó. Không tự đoán chữ hoặc số bị che;
+chỉ xuất các dòng hàng đủ nhận diện.
 """.strip()
     response_data = call_openai(prompt, INVOICE_SCHEMA, "invoice_items", documents=documents)
     raw_items = response_data.get("invoice_items", []) if isinstance(response_data, dict) else []

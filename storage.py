@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 import sqlite3
 from copy import copy
 from datetime import datetime
@@ -13,6 +14,14 @@ from openpyxl.utils import get_column_letter
 
 def round_vnd(value):
     return int(Decimal(str(value or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def clean_sapo_reference(value):
+    """Sapo chỉ nhận mã đơn gồm chữ, số, dấu gạch ngang và gạch dưới."""
+    value = str(value or "").strip()
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", value)
+    cleaned = re.sub(r"-+", "-", cleaned).strip("-_")
+    return cleaned[:100]
 
 
 class InvoiceStorage:
@@ -135,10 +144,20 @@ def export_sapo_excel(items, destination, template_path):
         sheet.row_dimensions[row].height = sheet.row_dimensions[source_row].height
 
     summary = items[0].get("invoice_summary") or {} if items else {}
-    sheet["B1"] = summary.get("invoice_number", "")
+    reference = clean_sapo_reference(summary.get("invoice_number", ""))
+    sheet["B1"] = reference
     sheet["B2"] = "AI-HOA-DON"
     sheet["B3"] = "Tạo và kiểm tra bởi Sapo Invoice Desktop"
-    sheet["B4"] = summary.get("invoice_number", "")
+    sheet["B4"] = reference
+    discount_value = round_vnd(summary.get("manual_discount_value"))
+    discount_type = str(summary.get("manual_discount_type") or "VND").upper()
+    # Mẫu Sapo dành G1 cho % và G2 cho số tiền VND; E/F là nhãn cố định.
+    sheet["G1"] = None
+    sheet["G2"] = None
+    if discount_type == "%":
+        sheet["G1"] = float(summary.get("manual_discount_value") or 0)
+    elif discount_value > 0:
+        sheet["G2"] = discount_value
     # Giá xuất ra đã gồm VAT, nên không cộng thuế thêm lần nữa trong Sapo.
     sheet["F3"] = None
 
