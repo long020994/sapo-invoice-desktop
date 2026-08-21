@@ -2,14 +2,15 @@
 from PyInstaller.utils.hooks import collect_data_files
 
 pdf_preview_data = collect_data_files('pypdfium2') + collect_data_files('pypdfium2_raw')
+customtkinter_data = collect_data_files('customtkinter')
 
 
 a = Analysis(
     ['run_app.pyw'],
     pathex=[],
     binaries=[],
-    datas=[('sapo_database.json', '.'), ('sapo_import_template.xlsx', '.')] + pdf_preview_data,
-    hiddenimports=['openai', 'flask', 'flask_cors', 'PIL.ImageTk', 'openpyxl', 'pypdfium2', 'pypdfium2_raw'],
+    datas=[('sapo_database.json', '.'), ('sapo_import_template.xlsx', '.')] + pdf_preview_data + customtkinter_data,
+    hiddenimports=['openai', 'flask', 'flask_cors', 'PIL.ImageTk', 'openpyxl', 'pypdfium2', 'pypdfium2_raw', 'customtkinter', 'darkdetect'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
