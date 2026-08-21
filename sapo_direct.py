@@ -144,7 +144,14 @@ class SapoApiClient:
             payload={"variant": {"id": int(variant_id), **dict(fields)}},
         )
 
-    def create_product(self, name, sku, barcode="", sale_price=0):
+    def put_product(self, product_id, fields):
+        return self.request_json(
+            "PUT",
+            f"/admin/products/{int(product_id)}.json",
+            payload={"product": {"id": int(product_id), **dict(fields)}},
+        )
+
+    def create_product(self, name, sku, barcode="", sale_price=0, unit_name="", image_url=""):
         variant = {
             "option1": "Default Title",
             "price": str(round(float(sale_price or 0))),
@@ -154,9 +161,14 @@ class SapoApiClient:
         }
         if clean_text(barcode):
             variant["barcode"] = clean_text(barcode)
+        product_fields = {"name": clean_text(name), "variants": [variant]}
+        if clean_text(unit_name):
+            product_fields["unit"] = clean_text(unit_name)
+        if str(image_url or "").strip().lower().startswith(("http://", "https://")):
+            product_fields["images"] = [{"src": str(image_url).strip()}]
         response = self.request_json(
             "POST", "/admin/products.json",
-            payload={"product": {"name": clean_text(name), "variants": [variant]}},
+            payload={"product": product_fields},
         )
         product = response.get("product") if isinstance(response, dict) else None
         variants = (product or {}).get("variants") or []
@@ -185,6 +197,16 @@ def sync_invoice_products(client, items, progress=None):
             fields["price"] = str(new_sale)
         if fields:
             actions.append(("update", item, fields))
+        product_fields = {}
+        if item.get("product_name_changed") and clean_text(item.get("sapo_name")):
+            product_fields["name"] = clean_text(item.get("sapo_name"))
+        if item.get("unit_changed") and clean_text(item.get("unit_name")):
+            product_fields["unit"] = clean_text(item.get("unit_name"))
+        image_url = clean_text(item.get("image_url"))
+        if item.get("image_url_changed") and image_url.lower().startswith(("http://", "https://")):
+            product_fields["images"] = [{"src": image_url}]
+        if product_fields and item.get("product_id"):
+            actions.append(("update_product", item, product_fields))
 
     created = 0
     updated = 0
@@ -194,6 +216,7 @@ def sync_invoice_products(client, items, progress=None):
             product, variant = client.create_product(
                 item.get("sapo_name") or item.get("original_name"),
                 item.get("sku"), item.get("barcode"), item.get("new_sale_price"),
+                item.get("unit_name"), item.get("image_url"),
             )
             item.update({
                 "matched": True,
@@ -201,12 +224,18 @@ def sync_invoice_products(client, items, progress=None):
                 "product_id": product.get("id"),
                 "variant_id": variant.get("id"),
                 "sapo_name": product.get("name") or item.get("sapo_name"),
+                "unit_name": clean_text(product.get("unit") or item.get("unit_name")),
+                "image_url": clean_text(item.get("image_url")),
                 "sku": clean_text(variant.get("sku") or item.get("sku")),
                 "barcode": clean_text(variant.get("barcode") or item.get("barcode")),
                 "system_sale_price": float(variant.get("price") or item.get("new_sale_price") or 0),
                 "generated_sku": False,
             })
             created += 1
+        elif action == "update_product":
+            client.put_product(item["product_id"], fields)
+            item["product_name_changed"] = False
+            updated += 1
         else:
             response = client.put_variant(item["variant_id"], fields)
             variant = response.get("variant", {}) if isinstance(response, dict) else {}
@@ -522,6 +551,11 @@ def build_database(products, existing_database=None):
             price = parse_number(old.get("price"))
         if cost <= 0:
             cost = parse_number(old.get("cost"))
+        image = product.get("image") if isinstance(product.get("image"), dict) else {}
+        images = product.get("images") if isinstance(product.get("images"), list) else []
+        image_url = clean_text(image.get("src") or image.get("url"))
+        if not image_url and images and isinstance(images[0], dict):
+            image_url = clean_text(images[0].get("src") or images[0].get("url"))
         known_prices = {
             parse_number(value) for value in old.get("prices", [])
             if parse_number(value) > 0
@@ -532,6 +566,9 @@ def build_database(products, existing_database=None):
             "sku": clean_text(variant.get("sku")),
             "barcode": clean_text(variant.get("barcode")),
             "variant_id": variant_id,
+            "product_id": product.get("id"),
+            "unit_name": clean_text(product.get("unit") or product.get("unit_name")),
+            "image_url": image_url,
             "price": price,
             "cost": cost,
             "prices": sorted(known_prices),

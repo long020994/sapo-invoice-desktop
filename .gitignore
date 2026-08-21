@@ -1,6 +1,7 @@
 # Local Python runtimes and build output
 .venv-build/
 .vendor/
+.vendor-v22/
 .python314-nuget/
 .python314-src-extract/
 .pythonbuild/

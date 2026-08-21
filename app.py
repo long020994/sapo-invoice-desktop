@@ -811,12 +811,29 @@ class InvoiceDesktopApp:
         select_all_on_double_click(combo)
         selected_catalog = {"product": None}
         create_new_var = tk.BooleanVar(value=bool(item.get("new_product")))
-        ttk.Checkbutton(
-            frame,
-            text="Đây là sản phẩm mới — tạo trực tiếp trên Sapo khi xuất",
-            variable=create_new_var,
-        ).grid(row=2, column=1, sticky="w", pady=(0, 5))
         sku_var = tk.StringVar(value=str(item.get("sku") or ""))
+        barcode_var = tk.StringVar(value=str(item.get("barcode") or ""))
+        unit_var = tk.StringVar(value=str(item.get("unit_name") or "Cái"))
+        image_url_var = tk.StringVar(value=str(item.get("image_url") or ""))
+        new_sale_var = tk.StringVar(value=str(item.get("new_sale_price", item.get("system_sale_price", 0))))
+
+        def create_new_product():
+            details = self.open_new_product_dialog(dialog, product_var.get(), new_sale_var.get())
+            if not details:
+                return
+            product_var.set(details["name"])
+            sku_var.set(details["sku"])
+            barcode_var.set(details["barcode"])
+            unit_var.set(details["unit_name"])
+            image_url_var.set(details["image_url"])
+            new_sale_var.set(str(details["sale_price"]))
+            create_new_var.set(True)
+            selected_catalog["product"] = None
+
+        ttk.Button(
+            frame, text="＋ TẠO SẢN PHẨM MỚI...", command=create_new_product,
+            style="Primary.TButton",
+        ).grid(row=2, column=1, sticky="w", pady=(0, 7))
         ttk.Button(
             frame,
             text="🔎 Tìm trong toàn bộ danh mục Sapo...",
@@ -827,38 +844,45 @@ class InvoiceDesktopApp:
         ttk.Label(frame, text="Mã SKU bắt buộc:").grid(row=4, column=0, sticky="w", pady=6)
         sku_entry = ttk.Entry(frame, textvariable=sku_var)
         sku_entry.grid(row=4, column=1, sticky="ew", pady=6)
-        barcode_var = tk.StringVar(value=str(item.get("barcode") or ""))
         ttk.Label(frame, text="Barcode:").grid(row=5, column=0, sticky="w", pady=6)
         barcode_entry = ttk.Entry(frame, textvariable=barcode_var)
         barcode_entry.grid(row=5, column=1, sticky="ew", pady=6)
-        ttk.Label(frame, text="Số lượng:").grid(row=6, column=0, sticky="w", pady=6)
+        ttk.Label(frame, text="Đơn vị tính:").grid(row=6, column=0, sticky="w", pady=6)
+        unit_entry = ttk.Entry(frame, textvariable=unit_var, width=24)
+        unit_entry.grid(row=6, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Image URL:").grid(row=7, column=0, sticky="w", pady=6)
+        image_url_entry = ttk.Entry(frame, textvariable=image_url_var)
+        image_url_entry.grid(row=7, column=1, sticky="ew", pady=6)
+        ttk.Label(frame, text="Số lượng:").grid(row=8, column=0, sticky="w", pady=6)
         qty_var = tk.StringVar(value=str(item.get("qty", 0)))
         qty_entry = ttk.Entry(frame, textvariable=qty_var, width=24)
-        qty_entry.grid(row=6, column=1, sticky="w", pady=6)
-        ttk.Label(frame, text="Giá nhập đã thuế:").grid(row=7, column=0, sticky="w", pady=6)
+        qty_entry.grid(row=8, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Giá nhập đã thuế:").grid(row=9, column=0, sticky="w", pady=6)
         price_var = tk.StringVar(value=str(item.get("price", 0)))
         price_entry = ttk.Entry(frame, textvariable=price_var, width=24)
-        price_entry.grid(row=7, column=1, sticky="w", pady=6)
-        ttk.Label(frame, text="Giá vốn hệ thống:").grid(row=8, column=0, sticky="w", pady=6)
+        price_entry.grid(row=9, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Giá vốn hệ thống:").grid(row=10, column=0, sticky="w", pady=6)
         system_cost_var = tk.StringVar(value=money(item.get("system_cost", 0)))
-        ttk.Entry(frame, textvariable=system_cost_var, state="readonly", width=24).grid(row=8, column=1, sticky="w", pady=6)
-        ttk.Label(frame, text="Giá bán hiện tại:").grid(row=9, column=0, sticky="w", pady=6)
+        ttk.Entry(frame, textvariable=system_cost_var, state="readonly", width=24).grid(row=10, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Giá bán hiện tại:").grid(row=11, column=0, sticky="w", pady=6)
         system_sale_var = tk.StringVar(value=money(item.get("system_sale_price", 0)))
-        ttk.Entry(frame, textvariable=system_sale_var, state="readonly", width=24).grid(row=9, column=1, sticky="w", pady=6)
-        ttk.Label(frame, text="Giá bán:").grid(row=10, column=0, sticky="w", pady=6)
-        new_sale_var = tk.StringVar(value=str(item.get("new_sale_price", item.get("system_sale_price", 0))))
+        ttk.Entry(frame, textvariable=system_sale_var, state="readonly", width=24).grid(row=11, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Giá bán:").grid(row=12, column=0, sticky="w", pady=6)
         sale_entry = ttk.Entry(frame, textvariable=new_sale_var, width=24)
-        sale_entry.grid(row=10, column=1, sticky="w", pady=6)
-        ttk.Label(frame, text="Lý do:").grid(row=11, column=0, sticky="nw", pady=6)
-        ttk.Label(frame, text=item.get("match_reason", ""), wraplength=500, foreground="#53718C").grid(row=11, column=1, sticky="w", pady=6)
+        sale_entry.grid(row=12, column=1, sticky="w", pady=6)
+        ttk.Label(frame, text="Lý do:").grid(row=13, column=0, sticky="nw", pady=6)
+        ttk.Label(frame, text=item.get("match_reason", ""), wraplength=500, foreground="#53718C").grid(row=13, column=1, sticky="w", pady=6)
 
-        editable_entries = {"sku": sku_entry, "barcode": barcode_entry, "qty": qty_entry, "price": price_entry, "sale": sale_entry}
+        editable_entries = {"sku": sku_entry, "barcode": barcode_entry, "unit": unit_entry, "image": image_url_entry, "qty": qty_entry, "price": price_entry, "sale": sale_entry}
         for editable in editable_entries.values():
             select_all_on_double_click(editable)
 
         def save():
             previous_sku = str(item.get("sku") or "").strip()
             previous_barcode = str(item.get("barcode") or "").strip()
+            previous_product_name = str(item.get("sapo_name") or "").strip()
+            previous_unit_name = str(item.get("unit_name") or "").strip()
+            previous_image_url = str(item.get("image_url") or "").strip()
             try:
                 item["qty"] = parse_user_number(qty_var.get())
                 item["price"] = parse_user_number(price_var.get())
@@ -866,6 +890,8 @@ class InvoiceDesktopApp:
             except ValueError:
                 return messagebox.showerror(APP_NAME, "Số lượng hoặc giá nhập không hợp lệ.", parent=dialog)
             selected_name = product_var.get().strip()
+            if not selected_name:
+                return messagebox.showerror(APP_NAME, "Tên sản phẩm không được để trống.", parent=dialog)
             chosen = selected_catalog.get("product") or next(
                 (suggestion for suggestion in suggestions if suggestion.get("name") == selected_name), None
             )
@@ -877,6 +903,7 @@ class InvoiceDesktopApp:
                     "matched": True, "new_product": True, "variant_id": None,
                     "sapo_name": selected_name, "sku": sku,
                     "barcode": barcode_var.get().strip(), "confidence": 1.0,
+                    "unit_name": unit_var.get().strip() or "Cái", "image_url": image_url_var.get().strip(),
                     "system_cost": 0, "system_sale_price": 0,
                     "match_reason": "Sản phẩm mới sẽ được tạo trực tiếp trên Sapo khi xuất.",
                     "generated_sku": False,
@@ -901,6 +928,13 @@ class InvoiceDesktopApp:
             elif selected_name:
                 item["sapo_name"] = selected_name
                 item["matched"] = bool(item.get("variant_id"))
+            if not create_new_var.get():
+                item["sapo_name"] = selected_name
+                item["unit_name"] = unit_var.get().strip()
+                item["image_url"] = image_url_var.get().strip()
+                item["product_name_changed"] = selected_name != previous_product_name
+                item["unit_changed"] = item["unit_name"] != previous_unit_name
+                item["image_url_changed"] = item["image_url"] != previous_image_url
             if not create_new_var.get() and sku_var.get().strip():
                 item["sku"] = sku_var.get().strip()
                 item["generated_sku"] = not bool(chosen and chosen.get("sku"))
@@ -916,21 +950,21 @@ class InvoiceDesktopApp:
             self.refresh_results()
 
         save_button = ttk.Button(frame, text="LƯU THAY ĐỔI", command=save, style="Primary.TButton")
-        save_button.grid(row=12, column=1, sticky="se", pady=(18, 4))
+        save_button.grid(row=14, column=1, sticky="se", pady=(18, 4))
         def save_with_enter(event):
             if isinstance(event.widget, ttk.Button):
                 return None
             save()
             return "break"
 
-        for widget in (combo, sku_entry, barcode_entry, qty_entry, price_entry, sale_entry):
+        for widget in (combo, sku_entry, barcode_entry, unit_entry, image_url_entry, qty_entry, price_entry, sale_entry):
             widget.bind("<Return>", save_with_enter)
             widget.bind("<KP_Enter>", save_with_enter)
         save_button.bind("<Return>", lambda _event: (save(), "break")[1])
         save_button.bind("<KP_Enter>", lambda _event: (save(), "break")[1])
         dialog.bind("<Escape>", lambda _event: dialog.destroy())
         frame.columnconfigure(1, weight=1)
-        frame.rowconfigure(11, weight=1)
+        frame.rowconfigure(13, weight=1)
         target = editable_entries.get(focus_field)
         if target:
             dialog.after(120, lambda: (target.focus_set(), target.selection_range(0, "end")))
@@ -954,6 +988,84 @@ class InvoiceDesktopApp:
             candidate = f"{base[:44]}{suffix}"
             suffix += 1
         return candidate
+
+    def suggest_next_numeric_sku(self):
+        """Đề xuất mã tăng dần theo SKU số đang có, tránh ảnh hưởng barcode dài/GTIN."""
+        numeric_skus = []
+        for product in invoice_engine.product_index.products:
+            sku = str(product.get("sku") or "").strip()
+            # SKU nội bộ đang dùng là mã ngắn; bỏ qua barcode/GTIN dài 8+ số.
+            if sku.isdigit() and 3 <= len(sku) <= 6:
+                numeric_skus.append(int(sku))
+        return str((max(numeric_skus) + 1) if numeric_skus else 100000)
+
+    def open_new_product_dialog(self, parent, initial_name="", initial_sale_price=""):
+        dialog = tk.Toplevel(parent)
+        dialog.title("Tạo sản phẩm mới")
+        dialog.geometry("620x510")
+        dialog.minsize(560, 450)
+        dialog.transient(parent)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="TẠO SẢN PHẨM MỚI", style="Section.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(frame, text="Điền thông tin sản phẩm. SKU và barcode được đề xuất theo mã số kế tiếp.", wraplength=540, foreground="#53718C").grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 16))
+        next_code = self.suggest_next_numeric_sku()
+        name_var = tk.StringVar(value=str(initial_name or "").strip())
+        sku_var = tk.StringVar(value=next_code)
+        barcode_var = tk.StringVar(value=next_code)
+        unit_var = tk.StringVar(value="Cái")
+        sale_var = tk.StringVar(value=str(initial_sale_price or "0"))
+        image_var = tk.StringVar(value="")
+        fields = (
+            ("Tên sản phẩm:", name_var),
+            ("SKU:", sku_var),
+            ("Barcode:", barcode_var),
+            ("Đơn vị tính:", unit_var),
+            ("Giá bán:", sale_var),
+            ("Image URL:", image_var),
+        )
+        entries = []
+        for row, (label, variable) in enumerate(fields, start=2):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=6)
+            entry = ttk.Entry(frame, textvariable=variable)
+            entry.grid(row=row, column=1, sticky="ew", pady=6)
+            select_all_on_double_click(entry)
+            entries.append(entry)
+        outcome = {}
+
+        def save_new_product():
+            name = name_var.get().strip()
+            sku = sku_var.get().strip()
+            barcode = barcode_var.get().strip()
+            image_url = image_var.get().strip()
+            if not name or not sku:
+                return messagebox.showerror(APP_NAME, "Tên sản phẩm và SKU là bắt buộc.", parent=dialog)
+            if image_url and not image_url.lower().startswith(("http://", "https://")):
+                return messagebox.showerror(APP_NAME, "Image URL phải bắt đầu bằng http:// hoặc https://.", parent=dialog)
+            try:
+                sale_price = parse_user_number(sale_var.get())
+            except ValueError:
+                return messagebox.showerror(APP_NAME, "Giá bán không hợp lệ.", parent=dialog)
+            outcome.update({
+                "name": name, "sku": sku, "barcode": barcode,
+                "unit_name": unit_var.get().strip() or "Cái",
+                "sale_price": sale_price, "image_url": image_url,
+            })
+            dialog.destroy()
+
+        actions = ttk.Frame(frame)
+        actions.grid(row=8, column=0, columnspan=2, sticky="e", pady=(22, 0))
+        ttk.Button(actions, text="Hủy", command=dialog.destroy).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="TẠO SẢN PHẨM NÀY", command=save_new_product, style="Primary.TButton").pack(side="left")
+        for entry in entries:
+            entry.bind("<Return>", lambda _event: (save_new_product(), "break")[1])
+            entry.bind("<KP_Enter>", lambda _event: (save_new_product(), "break")[1])
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        frame.columnconfigure(1, weight=1)
+        dialog.after(80, lambda: (entries[0].focus_set(), entries[0].selection_range(0, "end")))
+        self.root.wait_window(dialog)
+        return outcome or None
 
     def open_catalog_search(
         self, parent, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog
@@ -1266,6 +1378,9 @@ class InvoiceDesktopApp:
                 "name": result.get("sapo_name") or result.get("original_name") or "",
                 "sku": str(result.get("sku") or ""),
                 "barcode": str(result.get("barcode") or ""),
+                "product_id": result.get("product_id") or record.get("product_id"),
+                "unit_name": str(result.get("unit_name") or record.get("unit_name") or ""),
+                "image_url": str(result.get("image_url") or record.get("image_url") or ""),
                 "price": sale,
                 "cost": cost,
                 "prices": sorted({value for value in (sale, cost) if value > 0}),
