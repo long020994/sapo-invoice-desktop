@@ -6,6 +6,8 @@ import sys
 import threading
 import unicodedata
 from pathlib import Path
+from io import BytesIO
+from urllib.request import Request, urlopen
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
@@ -139,7 +141,11 @@ class InvoiceDesktopApp:
         ctk.CTkLabel(brand, text="Quản lý hóa đơn nhập hàng", text_color="#8EA3BE", font=ctk.CTkFont("Segoe UI", 10)).pack(anchor="w", pady=(9, 0))
         ctk.CTkLabel(sidebar, text="KHÔNG GIAN LÀM VIỆC", text_color="#617894", font=ctk.CTkFont("Segoe UI", 10, "bold")).pack(anchor="w", padx=22, pady=(18, 8))
         self.nav_buttons = {}
-        for key, text in (("invoice", "▦   Hóa đơn mới"), ("settings", "⚙   Cấu hình")):
+        for key, text in (
+            ("invoice", "▦   Hóa đơn mới"),
+            ("products", "▤   Danh sách sản phẩm"),
+            ("settings", "⚙   Cấu hình"),
+        ):
             button = ctk.CTkButton(
                 sidebar, text=text, command=lambda page=key: self.show_page(page),
                 fg_color="transparent", hover_color="#142746", text_color="#B9C7D8",
@@ -168,10 +174,12 @@ class InvoiceDesktopApp:
         self.page_host = ctk.CTkFrame(main, fg_color="#F4F7FB", corner_radius=0)
         self.page_host.pack(fill="both", expand=True, padx=20, pady=(14, 8))
         self.invoice_tab = ctk.CTkFrame(self.page_host, fg_color="#F4F7FB", corner_radius=0)
+        self.products_tab = ctk.CTkFrame(self.page_host, fg_color="#F4F7FB", corner_radius=0)
         self.settings_tab = ctk.CTkFrame(self.page_host, fg_color="#F4F7FB", corner_radius=0)
-        for page in (self.invoice_tab, self.settings_tab):
+        for page in (self.invoice_tab, self.products_tab, self.settings_tab):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._build_invoice_tab()
+        self._build_products_tab()
         self._build_settings_tab()
 
         self.status_var = tk.StringVar()
@@ -182,6 +190,7 @@ class InvoiceDesktopApp:
     def show_page(self, page):
         pages = {
             "invoice": (self.invoice_tab, "SAPO • INVOICE MANAGEMENT", "Xử lý hóa đơn nhập hàng", "Chọn hóa đơn, kiểm tra sản phẩm và xuất file Sapo trong một luồng."),
+            "products": (self.products_tab, "SAPO • PRODUCT CATALOG", "Danh sách sản phẩm", "Tra cứu nhanh tên, SKU, barcode, đơn vị và giá của danh mục hiện có."),
             "settings": (self.settings_tab, "HỆ THỐNG • THIẾT LẬP", "Cấu hình ứng dụng", "Quản lý kết nối AI, dữ liệu sản phẩm và công cụ bảo trì SKU."),
         }
         frame, eyebrow, title, subtitle = pages.get(page, pages["invoice"])
@@ -378,6 +387,308 @@ class InvoiceDesktopApp:
         self.preview_fit_mode = True
         self.set_preview_message("Chọn ảnh hoặc PDF để xem tại đây")
         self.file_list.bind("<<ListboxSelect>>", self.preview_selected_file)
+
+    def _build_products_tab(self):
+        card = ctk.CTkFrame(self.products_tab, fg_color="#FFFFFF", corner_radius=16, border_width=1, border_color="#DCE6F0")
+        card.pack(fill="both", expand=True)
+        toolbar = ctk.CTkFrame(card, fg_color="transparent")
+        toolbar.pack(fill="x", padx=18, pady=(17, 12))
+        ctk.CTkLabel(toolbar, text="DANH MỤC SẢN PHẨM", text_color="#1688F0", font=ctk.CTkFont("Segoe UI", 10, "bold")).pack(side="left")
+        self.product_count_var = tk.StringVar(value="0 sản phẩm")
+        ctk.CTkLabel(toolbar, textvariable=self.product_count_var, text_color="#607086", font=ctk.CTkFont("Segoe UI", 10)).pack(side="right")
+        search_row = ctk.CTkFrame(card, fg_color="transparent")
+        search_row.pack(fill="x", padx=18, pady=(0, 12))
+        self.product_search_var = tk.StringVar()
+        self.product_search_var.trace_add("write", lambda *_args: self.refresh_product_catalog())
+        self.product_search_entry = ctk.CTkEntry(
+            search_row, textvariable=self.product_search_var, height=36, corner_radius=9,
+            placeholder_text="Tìm theo tên, SKU hoặc barcode…",
+        )
+        self.product_search_entry.pack(side="left", fill="x", expand=True)
+        self.product_search_entry.bind("<Double-Button-1>", lambda _event: self.product_search_entry.select_range(0, "end"))
+        ctk.CTkButton(search_row, text="＋ Sản phẩm mới", command=self.create_catalog_product, height=36, corner_radius=9,
+                      fg_color="#1688F0", hover_color="#0875D1", font=ctk.CTkFont("Segoe UI", 10, "bold")).pack(side="right", padx=(9, 0))
+        ctk.CTkButton(search_row, text="Sửa sản phẩm", command=self.edit_catalog_product, height=36, corner_radius=9,
+                      fg_color="#E8F2FC", hover_color="#D9EBFA", text_color="#264A70").pack(side="right", padx=(9, 0))
+        ctk.CTkButton(search_row, text="Tải từ Sapo", command=self.download_catalog_from_sapo, height=36, corner_radius=9,
+                      fg_color="#EAF8F2", hover_color="#D5F0E2", text_color="#167A58").pack(side="right", padx=(9, 0))
+        ctk.CTkButton(search_row, text="Làm mới", command=self.refresh_product_catalog, height=36, corner_radius=9,
+                      fg_color="#E8F2FC", hover_color="#D9EBFA", text_color="#264A70").pack(side="left", padx=(9, 0))
+        content = ctk.CTkFrame(card, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=18, pady=(0, 17))
+        table_frame = ttk.Frame(content, style="Card.TFrame")
+        table_frame.pack(side="left", fill="both", expand=True)
+        columns = ("name", "sku", "barcode", "unit", "cost", "sale", "image")
+        self.product_tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
+        headings = {"name": "Tên sản phẩm", "sku": "SKU", "barcode": "Barcode", "unit": "Đơn vị", "cost": "Giá vốn", "sale": "Giá bán", "image": "Ảnh"}
+        widths = {"name": 350, "sku": 135, "barcode": 155, "unit": 90, "cost": 105, "sale": 105, "image": 65}
+        for column in columns:
+            self.product_tree.heading(column, text=headings[column])
+            self.product_tree.column(column, width=widths[column], minwidth=55, anchor="w" if column == "name" else "center")
+        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.product_tree.yview)
+        self.product_tree.configure(yscrollcommand=yscroll.set)
+        self.product_tree.pack(side="left", fill="both", expand=True)
+        yscroll.pack(side="right", fill="y")
+        self.product_tree.bind("<Double-1>", lambda _event: self.edit_catalog_product())
+        self.product_tree.bind("<<TreeviewSelect>>", self.show_catalog_thumbnail)
+        preview = ctk.CTkFrame(content, fg_color="#F5F8FC", corner_radius=12, width=160)
+        preview.pack(side="right", fill="y", padx=(12, 0))
+        preview.pack_propagate(False)
+        ctk.CTkLabel(preview, text="ẢNH SẢN PHẨM", text_color="#607086", font=ctk.CTkFont("Segoe UI", 9, "bold")).pack(pady=(15, 8))
+        self.catalog_thumbnail_label = ctk.CTkLabel(preview, text="Chọn sản phẩm\nđể xem ảnh", width=135, height=135,
+                                                     corner_radius=10, fg_color="#E6EDF5", text_color="#718096", justify="center")
+        self.catalog_thumbnail_label.pack(padx=12)
+        self.catalog_thumbnail_name = ctk.CTkLabel(preview, text="", wraplength=135, justify="center", text_color="#40566E", font=ctk.CTkFont("Segoe UI", 9))
+        self.catalog_thumbnail_name.pack(padx=10, pady=(9, 0))
+        self.catalog_thumbnail_image = None
+        self.catalog_thumbnail_cache = {}
+        self.refresh_product_catalog()
+
+    def refresh_product_catalog(self):
+        if not hasattr(self, "product_tree"):
+            return
+        keyword = invoice_engine.normalize_text(getattr(self, "product_search_var", tk.StringVar()).get())
+        products = list(getattr(invoice_engine.product_index, "products", []))
+        if keyword:
+            products = [
+                product for product in products
+                if keyword in invoice_engine.normalize_text(
+                    " ".join(str(product.get(field) or "") for field in ("name", "sku", "barcode"))
+                )
+            ]
+        products.sort(key=lambda product: invoice_engine.normalize_text(product.get("name")))
+        self.product_catalog_rows = products
+        self.product_tree.delete(*self.product_tree.get_children())
+        for index, product in enumerate(products[:1000]):
+            self.product_tree.insert("", "end", iid=str(index), values=(
+                product.get("name") or "—", product.get("sku") or "—", product.get("barcode") or "—",
+                product.get("unit_name") or "—", money(product.get("cost")), money(product.get("price")),
+                "Có" if product.get("image_url") else "—",
+            ))
+        suffix = " (hiển thị 1.000 dòng đầu)" if len(products) > 1000 else ""
+        self.product_count_var.set(f"{len(products):,} sản phẩm{suffix}".replace(",", "."))
+
+    def selected_catalog_product(self):
+        selected = self.product_tree.selection() if hasattr(self, "product_tree") else ()
+        if not selected:
+            return None
+        try:
+            return self.product_catalog_rows[int(selected[0])]
+        except (IndexError, ValueError):
+            return None
+
+    def show_catalog_thumbnail(self, _event=None):
+        product = self.selected_catalog_product()
+        if not product:
+            return
+        self.catalog_thumbnail_name.configure(text=str(product.get("name") or ""))
+        image_url = str(product.get("image_url") or "").strip()
+        if not image_url:
+            self.catalog_thumbnail_image = None
+            self.catalog_thumbnail_label.configure(image=None, text="Chưa có ảnh")
+            return
+        cached = self.catalog_thumbnail_cache.get(image_url)
+        if cached is not None:
+            self.catalog_thumbnail_image = cached
+            self.catalog_thumbnail_label.configure(image=cached, text="")
+            return
+        self.catalog_thumbnail_label.configure(image=None, text="Đang tải ảnh…")
+        variant_id = product.get("variant_id")
+
+        def worker():
+            try:
+                request = Request(image_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                })
+                with urlopen(request, timeout=30) as response:
+                    image = Image.open(BytesIO(response.read())).convert("RGB")
+                image.thumbnail((135, 135), Image.Resampling.LANCZOS)
+                self.root.after(0, lambda rendered=image.copy(): apply_image(rendered))
+            except Exception as exc:
+                self.root.after(0, lambda error=str(exc): apply_missing(error))
+
+        def apply_image(rendered):
+            current = self.selected_catalog_product()
+            if not current or current.get("variant_id") != variant_id:
+                return
+            # CTkImage phải được tạo trên luồng giao diện; tạo trong luồng tải ảnh
+            # khiến một số máy đứng ở trạng thái "Đang tải ảnh...".
+            photo = ctk.CTkImage(light_image=rendered, dark_image=rendered, size=rendered.size)
+            self.catalog_thumbnail_cache[image_url] = photo
+            self.catalog_thumbnail_image = photo
+            self.catalog_thumbnail_label.configure(image=photo, text="")
+
+        def apply_missing(error):
+            current = self.selected_catalog_product()
+            if current and current.get("variant_id") == variant_id:
+                self.catalog_thumbnail_label.configure(image=None, text="Không tải được ảnh")
+                self.set_status(f"Không tải được thumbnail: {error}")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def configure_catalog_runtime(self, database_path):
+        invoice_engine.configure_runtime(
+            self.key_var.get().strip(), database_path,
+            DATA_DIR / "learning_rules.json", DATA_DIR / "price_history.json",
+            self.model_var.get().strip(),
+        )
+        self.refresh_product_catalog()
+
+    def download_catalog_from_sapo(self):
+        if self.busy:
+            return messagebox.showinfo(APP_NAME, "Ứng dụng đang thực hiện một tác vụ khác.")
+        sapo_config = self.get_sapo_config()
+        if not sapo_config:
+            return
+        if not messagebox.askyesno(
+            APP_NAME,
+            "Tải lại toàn bộ danh mục từ Sapo?\n\n"
+            "Thao tác này bổ sung ảnh và đơn vị tính mà Sapo API trả về vào dữ liệu trong app.",
+            parent=self.root,
+        ):
+            return
+        self.busy = True
+        self.set_status("Đang tải danh mục sản phẩm từ Sapo…")
+
+        def worker():
+            try:
+                client = sapo_direct.SapoApiClient(sapo_config)
+                products = sapo_direct.download_products(client)
+                path = Path(self.db_var.get().strip() or DATABASE_PATH)
+                count = sapo_direct.save_database(products, path)
+                self.root.after(0, lambda: done(count, path))
+            except Exception as exc:
+                self.root.after(0, lambda: failed(str(exc)))
+
+        def done(count, path):
+            self.busy = False
+            self.db_var.set(str(path))
+            self.configure_catalog_runtime(path)
+            self.set_status(f"Đã tải {count:,} sản phẩm từ Sapo.".replace(",", "."))
+            messagebox.showinfo(APP_NAME, f"Đã làm mới {count:,} sản phẩm từ Sapo.".replace(",", "."), parent=self.root)
+
+        def failed(error):
+            self.busy = False
+            self.set_status("Chưa thể tải danh mục từ Sapo.")
+            messagebox.showerror(APP_NAME, f"Không tải được danh mục Sapo: {error}", parent=self.root)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _save_catalog_record(self, record):
+        path = Path(self.db_var.get().strip() or DATABASE_PATH)
+        try:
+            database = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(database, list):
+                database = []
+        except (FileNotFoundError, OSError, ValueError):
+            database = []
+        variant_id = record.get("variant_id")
+        for index, current in enumerate(database):
+            if str(current.get("variant_id")) == str(variant_id):
+                database[index] = {**current, **record}
+                break
+        else:
+            database.append(record)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(json.dumps(database, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)
+        self.configure_catalog_runtime(path)
+
+    def create_catalog_product(self):
+        details = self.open_new_product_dialog(self.root)
+        if not details:
+            return
+        sapo_config = self.get_sapo_config()
+        if not sapo_config:
+            return
+        try:
+            product, variant = sapo_direct.SapoApiClient(sapo_config).create_product(
+                details["name"], details["sku"], details["barcode"], details["sale_price"],
+                details["unit_name"], details["image_url"],
+            )
+            self._save_catalog_record({
+                "name": product.get("name") or details["name"], "sku": variant.get("sku") or details["sku"],
+                "barcode": variant.get("barcode") or details["barcode"], "variant_id": variant.get("id"),
+                "product_id": product.get("id"), "unit_name": variant.get("unit") or details["unit_name"],
+                "image_url": details["image_url"], "price": float(variant.get("price") or details["sale_price"] or 0),
+                "cost": 0, "prices": [float(variant.get("price") or details["sale_price"] or 0)],
+            })
+            self.set_status("Đã tạo sản phẩm mới trên Sapo và cập nhật danh mục.")
+            messagebox.showinfo(APP_NAME, "Đã tạo sản phẩm mới trên Sapo.", parent=self.root)
+        except Exception as exc:
+            messagebox.showerror(APP_NAME, f"Không tạo được sản phẩm: {exc}", parent=self.root)
+
+    def edit_catalog_product(self):
+        product = self.selected_catalog_product()
+        if not product:
+            return messagebox.showinfo(APP_NAME, "Hãy chọn một sản phẩm để sửa.", parent=self.root)
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Sửa sản phẩm Sapo")
+        dialog.geometry("630x545")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="CHỈNH SỬA SẢN PHẨM", style="Section.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(frame, text="Các thay đổi được lưu trực tiếp lên Sapo và danh mục cục bộ.", foreground="#53718C").grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 14))
+        values = {
+            "name": tk.StringVar(value=str(product.get("name") or "")),
+            "sku": tk.StringVar(value=str(product.get("sku") or "")),
+            "barcode": tk.StringVar(value=str(product.get("barcode") or "")),
+            "unit": tk.StringVar(value=str(product.get("unit_name") or "")),
+            "cost": tk.StringVar(value=str(product.get("cost") or 0)),
+            "price": tk.StringVar(value=str(product.get("price") or 0)),
+            "image": tk.StringVar(value=str(product.get("image_url") or "")),
+        }
+        labels = (("Tên sản phẩm:", "name"), ("SKU:", "sku"), ("Barcode:", "barcode"), ("Đơn vị tính:", "unit"), ("Giá vốn:", "cost"), ("Giá bán:", "price"), ("Image URL:", "image"))
+        entries = []
+        for row, (label, key) in enumerate(labels, start=2):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=6)
+            entry = ttk.Entry(frame, textvariable=values[key])
+            entry.grid(row=row, column=1, sticky="ew", pady=6)
+            select_all_on_double_click(entry)
+            entries.append(entry)
+
+        def save():
+            try:
+                name, sku = values["name"].get().strip(), values["sku"].get().strip()
+                image_url = values["image"].get().strip()
+                if not name or not sku:
+                    raise ValueError("Tên sản phẩm và SKU là bắt buộc.")
+                if image_url and not image_url.lower().startswith(("http://", "https://")):
+                    raise ValueError("Image URL phải bắt đầu bằng http:// hoặc https://.")
+                cost, sale = parse_user_number(values["cost"].get()), parse_user_number(values["price"].get())
+                client = sapo_direct.SapoApiClient(self.get_sapo_config())
+                product_id = product.get("product_id")
+                if not product_id:
+                    resolved = client.get_variant(product["variant_id"]).get("variant", {})
+                    product_id = resolved.get("product_id")
+                client.put_product(product_id, {"name": name})
+                variant_response = client.put_variant(product["variant_id"], {
+                    "sku": sku, "barcode": values["barcode"].get().strip(), "unit": values["unit"].get().strip(),
+                    "cost": str(round(cost)), "price": str(round(sale)),
+                })
+                variant = variant_response.get("variant", {}) if isinstance(variant_response, dict) else {}
+                if image_url and image_url != str(product.get("image_url") or ""):
+                    client.add_product_image(product_id, image_url)
+                self._save_catalog_record({
+                    **product, "name": name, "sku": variant.get("sku") or sku,
+                    "barcode": variant.get("barcode") or values["barcode"].get().strip(), "product_id": product_id,
+                    "unit_name": variant.get("unit") or values["unit"].get().strip(), "image_url": image_url,
+                    "cost": cost, "price": sale, "prices": sorted({value for value in (cost, sale) if value > 0}),
+                })
+                dialog.destroy()
+                self.set_status("Đã cập nhật sản phẩm trên Sapo.")
+            except Exception as exc:
+                messagebox.showerror(APP_NAME, f"Không lưu được sản phẩm: {exc}", parent=dialog)
+
+        ttk.Button(frame, text="LƯU THAY ĐỔI", command=save, style="Primary.TButton").grid(row=9, column=1, sticky="e", pady=(18, 0))
+        for entry in entries:
+            entry.bind("<Return>", lambda _event: (save(), "break")[1])
+            entry.bind("<KP_Enter>", lambda _event: (save(), "break")[1])
+        frame.columnconfigure(1, weight=1)
+        dialog.after(80, lambda: (entries[0].focus_set(), entries[0].selection_range(0, "end")))
 
     def _build_settings_tab(self):
         body = tk.Frame(self.settings_tab, bg="#F4F7FB")
@@ -1394,6 +1705,7 @@ class InvoiceDesktopApp:
             DATA_DIR / "learning_rules.json", DATA_DIR / "price_history.json",
             self.model_var.get().strip(),
         )
+        self.refresh_product_catalog()
 
     def show_missing_sku(self, items):
         dialog = tk.Toplevel(self.root)

@@ -2,6 +2,7 @@
 .venv-build/
 .vendor/
 .vendor-v22/
+.vendor-v26/
 .python314-nuget/
 .python314-src-extract/
 .pythonbuild/

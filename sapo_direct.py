@@ -137,6 +137,9 @@ class SapoApiClient:
     def put_variant_sku(self, variant_id, sku):
         return self.put_variant(variant_id, {"sku": str(sku)})
 
+    def get_variant(self, variant_id):
+        return self.get_json(f"/admin/variants/{int(variant_id)}.json")
+
     def put_variant(self, variant_id, fields):
         return self.request_json(
             "PUT",
@@ -151,6 +154,21 @@ class SapoApiClient:
             payload={"product": {"id": int(product_id), **dict(fields)}},
         )
 
+    def add_product_image(self, product_id, image_url):
+        """Tạo ảnh qua Product Image API thay vì nhúng vào Product PUT.
+
+        Sapo xử lý ảnh là một tài nguyên riêng; gửi `images` khi cập nhật Product
+        có thể được chấp nhận nhưng không tạo ảnh trên một số cửa hàng.
+        """
+        image_url = clean_text(image_url)
+        if not image_url.lower().startswith(("http://", "https://")):
+            raise ValueError("Image URL phải bắt đầu bằng http:// hoặc https://")
+        return self.request_json(
+            "POST",
+            f"/admin/products/{int(product_id)}/images.json",
+            payload={"image": {"src": image_url}},
+        )
+
     def create_product(self, name, sku, barcode="", sale_price=0, unit_name="", image_url=""):
         variant = {
             "option1": "Default Title",
@@ -161,11 +179,9 @@ class SapoApiClient:
         }
         if clean_text(barcode):
             variant["barcode"] = clean_text(barcode)
-        product_fields = {"name": clean_text(name), "variants": [variant]}
         if clean_text(unit_name):
-            product_fields["unit"] = clean_text(unit_name)
-        if str(image_url or "").strip().lower().startswith(("http://", "https://")):
-            product_fields["images"] = [{"src": str(image_url).strip()}]
+            variant["unit"] = clean_text(unit_name)
+        product_fields = {"name": clean_text(name), "variants": [variant]}
         response = self.request_json(
             "POST", "/admin/products.json",
             payload={"product": product_fields},
@@ -174,6 +190,8 @@ class SapoApiClient:
         variants = (product or {}).get("variants") or []
         if not product or not variants:
             raise RuntimeError("Sapo không trả về sản phẩm vừa tạo")
+        if clean_text(image_url):
+            self.add_product_image(product["id"], image_url)
         return product, variants[0]
 
 
@@ -201,12 +219,17 @@ def sync_invoice_products(client, items, progress=None):
         if item.get("product_name_changed") and clean_text(item.get("sapo_name")):
             product_fields["name"] = clean_text(item.get("sapo_name"))
         if item.get("unit_changed") and clean_text(item.get("unit_name")):
-            product_fields["unit"] = clean_text(item.get("unit_name"))
+            fields["unit"] = clean_text(item.get("unit_name"))
         image_url = clean_text(item.get("image_url"))
-        if item.get("image_url_changed") and image_url.lower().startswith(("http://", "https://")):
-            product_fields["images"] = [{"src": image_url}]
-        if product_fields and item.get("product_id"):
+        needs_product = bool(product_fields) or bool(item.get("image_url_changed") and image_url)
+        if needs_product and not item.get("product_id"):
+            # Database cũ có thể chỉ lưu variant_id. Lấy product_id trực tiếp
+            # từ Sapo để vẫn cập nhật được ảnh/tên/đơn vị.
+            actions.append(("resolve_product", item, None))
+        if product_fields:
             actions.append(("update_product", item, product_fields))
+        if item.get("image_url_changed") and image_url:
+            actions.append(("add_image", item, image_url))
 
     created = 0
     updated = 0
@@ -224,7 +247,7 @@ def sync_invoice_products(client, items, progress=None):
                 "product_id": product.get("id"),
                 "variant_id": variant.get("id"),
                 "sapo_name": product.get("name") or item.get("sapo_name"),
-                "unit_name": clean_text(product.get("unit") or item.get("unit_name")),
+                "unit_name": clean_text(variant.get("unit") or product.get("unit") or item.get("unit_name")),
                 "image_url": clean_text(item.get("image_url")),
                 "sku": clean_text(variant.get("sku") or item.get("sku")),
                 "barcode": clean_text(variant.get("barcode") or item.get("barcode")),
@@ -232,9 +255,23 @@ def sync_invoice_products(client, items, progress=None):
                 "generated_sku": False,
             })
             created += 1
+        elif action == "resolve_product":
+            response = client.get_variant(item["variant_id"])
+            variant = response.get("variant", {}) if isinstance(response, dict) else {}
+            product_id = variant.get("product_id")
+            if not product_id:
+                raise RuntimeError("Sapo không trả về mã sản phẩm để cập nhật thông tin")
+            item["product_id"] = product_id
         elif action == "update_product":
             client.put_product(item["product_id"], fields)
             item["product_name_changed"] = False
+            item["unit_changed"] = False
+            updated += 1
+        elif action == "add_image":
+            response = client.add_product_image(item["product_id"], fields)
+            image = response.get("image", {}) if isinstance(response, dict) else {}
+            item["image_url"] = clean_text(image.get("src") or fields)
+            item["image_url_changed"] = False
             updated += 1
         else:
             response = client.put_variant(item["variant_id"], fields)
@@ -249,6 +286,9 @@ def sync_invoice_products(client, items, progress=None):
             if "price" in fields:
                 item["system_sale_price"] = float(variant.get("price") or fields["price"])
                 item["new_sale_price"] = item["system_sale_price"]
+            if "unit" in fields:
+                item["unit_name"] = clean_text(variant.get("unit") or fields["unit"])
+                item["unit_changed"] = False
             updated += 1
         if progress:
             progress(position, total, action, item)
@@ -567,7 +607,7 @@ def build_database(products, existing_database=None):
             "barcode": clean_text(variant.get("barcode")),
             "variant_id": variant_id,
             "product_id": product.get("id"),
-            "unit_name": clean_text(product.get("unit") or product.get("unit_name")),
+            "unit_name": clean_text(variant.get("unit") or product.get("unit") or product.get("unit_name")),
             "image_url": image_url,
             "price": price,
             "cost": cost,
