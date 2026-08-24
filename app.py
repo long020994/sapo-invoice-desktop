@@ -84,6 +84,10 @@ class InvoiceDesktopApp:
         self.root.title(APP_NAME)
         self.root.geometry("1320x820")
         self.root.minsize(1080, 680)
+        try:
+            self.root.state("zoomed")
+        except tk.TclError:
+            pass
         self.root.configure(fg_color="#F4F7FB")
         self.config_store = ConfigStore(DATA_DIR / "settings.json")
         self.config = self.config_store.load()
@@ -212,7 +216,7 @@ class InvoiceDesktopApp:
         left_panel = ctk.CTkFrame(workspace, fg_color="#F4F7FB", corner_radius=0)
         preview_card = ctk.CTkFrame(workspace, fg_color="#FFFFFF", corner_radius=16, border_width=1, border_color="#DCE6F0")
         workspace.add(left_panel, minsize=760, stretch="always")
-        workspace.add(preview_card, minsize=280, width=330, stretch="never")
+        workspace.add(preview_card, minsize=340, width=410, stretch="never")
 
         upload_card = ctk.CTkFrame(left_panel, fg_color="#FFFFFF", corner_radius=16, border_width=1, border_color="#DCE6F0")
         upload_card.pack(fill="x", pady=(0, 12))
@@ -399,7 +403,9 @@ class InvoiceDesktopApp:
         search_row = ctk.CTkFrame(card, fg_color="transparent")
         search_row.pack(fill="x", padx=18, pady=(0, 12))
         self.product_search_var = tk.StringVar()
-        self.product_search_var.trace_add("write", lambda *_args: self.refresh_product_catalog())
+        self.product_search_job = None
+        self.product_catalog_query_cache = {}
+        self.product_search_var.trace_add("write", lambda *_args: self.schedule_product_search())
         self.product_search_entry = ctk.CTkEntry(
             search_row, textvariable=self.product_search_var, height=36, corner_radius=9,
             placeholder_text="Tìm theo tên, SKU hoặc barcode…",
@@ -448,25 +454,65 @@ class InvoiceDesktopApp:
         if not hasattr(self, "product_tree"):
             return
         keyword = invoice_engine.normalize_text(getattr(self, "product_search_var", tk.StringVar()).get())
-        products = list(getattr(invoice_engine.product_index, "products", []))
-        if keyword:
-            products = [
-                product for product in products
-                if keyword in invoice_engine.normalize_text(
-                    " ".join(str(product.get(field) or "") for field in ("name", "sku", "barcode"))
+        if getattr(self, "product_search_job", None):
+            try:
+                self.root.after_cancel(self.product_search_job)
+            except tk.TclError:
+                pass
+            self.product_search_job = None
+        if getattr(self, "product_catalog_all", None) is None:
+            self.product_catalog_all = sorted(
+                list(getattr(invoice_engine.product_index, "products", [])),
+                key=lambda product: invoice_engine.normalize_text(product.get("name")),
+            )
+            self.product_catalog_search = [
+                (
+                    product,
+                    invoice_engine.normalize_text(" ".join(str(product.get(field) or "") for field in ("name", "sku", "barcode"))),
+                    invoice_engine.normalize_text(str(product.get("name") or "")),
                 )
+                for product in self.product_catalog_all
             ]
-        products.sort(key=lambda product: invoice_engine.normalize_text(product.get("name")))
+        cached_products = self.product_catalog_query_cache.get(keyword)
+        if cached_products is not None:
+            products = cached_products
+        elif keyword:
+            # Tìm theo từng từ thay vì đòi hỏi cả cụm từ phải liền nhau.
+            # Ví dụ: "găng tay 38cm" vẫn khớp với "3M Găng tay gia dụng có móc treo 38cm".
+            tokens = [token for token in keyword.split() if token]
+            matches = []
+            for product, searchable, name_search in self.product_catalog_search:
+                if not all(token in searchable for token in tokens):
+                    continue
+                # Ưu tiên kết quả có các từ khóa xuất hiện trong tên sản phẩm.
+                name_hits = sum(token in name_search for token in tokens)
+                exact_name = int(keyword in name_search)
+                matches.append((exact_name, name_hits, product))
+            matches.sort(key=lambda item: (-item[0], -item[1], invoice_engine.normalize_text(item[2].get("name"))))
+            products = [product for _exact, _hits, product in matches]
+            self.product_catalog_query_cache[keyword] = products
+        else:
+            products = self.product_catalog_all
+            self.product_catalog_query_cache[""] = products
         self.product_catalog_rows = products
         self.product_tree.delete(*self.product_tree.get_children())
-        for index, product in enumerate(products[:1000]):
+        visible_limit = 250
+        for index, product in enumerate(products[:visible_limit]):
             self.product_tree.insert("", "end", iid=str(index), values=(
                 product.get("name") or "—", product.get("sku") or "—", product.get("barcode") or "—",
                 product.get("unit_name") or "—", money(product.get("cost")), money(product.get("price")),
                 "Có" if product.get("image_url") else "—",
             ))
-        suffix = " (hiển thị 1.000 dòng đầu)" if len(products) > 1000 else ""
+        suffix = f" (hiển thị {visible_limit} dòng đầu)" if len(products) > visible_limit else ""
         self.product_count_var.set(f"{len(products):,} sản phẩm{suffix}".replace(",", "."))
+
+    def schedule_product_search(self):
+        if getattr(self, "product_search_job", None):
+            try:
+                self.root.after_cancel(self.product_search_job)
+            except tk.TclError:
+                pass
+        self.product_search_job = self.root.after(140, self.refresh_product_catalog)
 
     def selected_catalog_product(self):
         selected = self.product_tree.selection() if hasattr(self, "product_tree") else ()
@@ -533,6 +579,11 @@ class InvoiceDesktopApp:
             DATA_DIR / "learning_rules.json", DATA_DIR / "price_history.json",
             self.model_var.get().strip(),
         )
+        # Dữ liệu vừa tải/sửa có thể thay đổi tên, SKU hoặc barcode; tạo lại
+        # chỉ mục tìm kiếm để kết quả không bị giữ từ danh mục cũ.
+        self.product_catalog_all = None
+        self.product_catalog_search = None
+        self.product_catalog_query_cache = {}
         self.refresh_product_catalog()
 
     def download_catalog_from_sapo(self):
@@ -1128,6 +1179,18 @@ class InvoiceDesktopApp:
         image_url_var = tk.StringVar(value=str(item.get("image_url") or ""))
         new_sale_var = tk.StringVar(value=str(item.get("new_sale_price", item.get("system_sale_price", 0))))
 
+        def select_suggestion(_event=None):
+            selected_name = product_var.get().strip()
+            chosen = next((suggestion for suggestion in suggestions if suggestion.get("name") == selected_name), None)
+            if chosen:
+                selected_catalog["product"] = chosen
+                create_new_var.set(False)
+                sku_var.set(str(chosen.get("sku") or ""))
+                barcode_var.set(str(chosen.get("barcode") or ""))
+                new_sale_var.set(str(chosen.get("price") or 0))
+
+        combo.bind("<<ComboboxSelected>>", select_suggestion)
+
         def create_new_product():
             details = self.open_new_product_dialog(dialog, product_var.get(), new_sale_var.get())
             if not details:
@@ -1149,7 +1212,7 @@ class InvoiceDesktopApp:
             frame,
             text="🔎 Tìm trong toàn bộ danh mục Sapo...",
             command=lambda: self.open_catalog_search(
-                dialog, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog
+                dialog, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog, new_sale_var
             ),
         ).grid(row=3, column=1, sticky="w", pady=(0, 8))
         ttk.Label(frame, text="Mã SKU bắt buộc:").grid(row=4, column=0, sticky="w", pady=6)
@@ -1308,7 +1371,14 @@ class InvoiceDesktopApp:
             # SKU nội bộ đang dùng là mã ngắn; bỏ qua barcode/GTIN dài 8+ số.
             if sku.isdigit() and 3 <= len(sku) <= 6:
                 numeric_skus.append(int(sku))
-        return str((max(numeric_skus) + 1) if numeric_skus else 100000)
+        # 14441 là mốc SKU nội bộ hiện tại. Luôn tăng tiếp từ mốc này hoặc
+        # từ SKU lớn nhất đang có, đồng thời nhớ mã đã cấp trong phiên hiện tại
+        # để mở hộp thoại liên tiếp không bị lặp lại.
+        highest = max([14441, *numeric_skus])
+        cursor = int(getattr(self, "_next_numeric_sku", highest))
+        candidate = max(highest, cursor) + 1
+        self._next_numeric_sku = candidate
+        return str(candidate)
 
     def open_new_product_dialog(self, parent, initial_name="", initial_sale_price=""):
         dialog = tk.Toplevel(parent)
@@ -1379,7 +1449,7 @@ class InvoiceDesktopApp:
         return outcome or None
 
     def open_catalog_search(
-        self, parent, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog
+        self, parent, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog, sale_var=None
     ):
         dialog = tk.Toplevel(parent)
         dialog.title("Tìm toàn bộ danh mục Sapo")
@@ -1434,6 +1504,8 @@ class InvoiceDesktopApp:
             product_var.set(product.get("name", ""))
             sku_var.set(product.get("sku", ""))
             barcode_var.set(product.get("barcode", ""))
+            if sale_var is not None:
+                sale_var.set(str(product.get("price") or 0))
             create_new_var.set(False)
             dialog.destroy()
 
