@@ -1619,7 +1619,8 @@ class InvoiceDesktopApp:
                     return messagebox.showerror(APP_NAME, f"Không tạo được file cập nhật sản phẩm: {exc}")
             for position, group in enumerate(groups.values(), start=1):
                 summary = group[0].get("invoice_summary") or {}
-                number = re.sub(r"[^A-Za-z0-9_-]+", "-", str(summary.get("invoice_number") or position)).strip("-_") or str(position)
+                # Tên file cũng dùng số hóa đơn đã làm sạch, khớp với mã trong Excel.
+                number = "".join(re.findall(r"\d+", str(summary.get("invoice_number") or ""))) or str(position)
                 export_sapo_excel(
                     group, Path(folder) / f"BUOC-2-don-nhap-hang-{number}.xlsx",
                     BASE_DIR / "sapo_import_template.xlsx",

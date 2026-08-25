@@ -17,11 +17,8 @@ def round_vnd(value):
 
 
 def clean_sapo_reference(value):
-    """Sapo chỉ nhận mã đơn gồm chữ, số, dấu gạch ngang và gạch dưới."""
-    value = str(value or "").strip()
-    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", value)
-    cleaned = re.sub(r"-+", "-", cleaned).strip("-_")
-    return cleaned[:100]
+    """Mã đơn nhập Sapo chỉ dùng chữ số để không vướng ký tự đặc biệt."""
+    return "".join(re.findall(r"\d+", str(value or "")))[:100]
 
 
 class InvoiceStorage:
@@ -145,6 +142,9 @@ def export_sapo_excel(items, destination, template_path):
 
     summary = items[0].get("invoice_summary") or {} if items else {}
     reference = clean_sapo_reference(summary.get("invoice_number", ""))
+    # Một số hóa đơn không có số. Dùng dấu thời gian toàn chữ số để Sapo vẫn nhận.
+    if not reference:
+        reference = datetime.now().strftime("%Y%m%d%H%M%S%f")
     sheet["B1"] = reference
     sheet["B2"] = "AI-HOA-DON"
     sheet["B3"] = "Tạo và kiểm tra bởi Sapo Invoice Desktop"
