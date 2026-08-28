@@ -94,6 +94,7 @@ class InvoiceDesktopApp:
         self.files = []
         self.results = []
         self.busy = False
+        self.reanalyze_after_busy = False
         self._style()
         self._build()
         self.set_status("Sẵn sàng. Chọn ảnh hoặc PDF hóa đơn để bắt đầu.")
@@ -233,11 +234,13 @@ class InvoiceDesktopApp:
         self.mode_var = tk.StringVar(value="single_invoice")
         ctk.CTkRadioButton(
             controls, text="Một hóa đơn nhiều file", variable=self.mode_var,
-            value="single_invoice", text_color="#34495E", font=ctk.CTkFont("Segoe UI", 10),
+            value="single_invoice", command=self.on_invoice_mode_changed,
+            text_color="#34495E", font=ctk.CTkFont("Segoe UI", 10),
         ).pack(side="left")
         ctk.CTkRadioButton(
-            controls, text="Mỗi file một hóa đơn", variable=self.mode_var,
-            value="separate_invoices", text_color="#34495E", font=ctk.CTkFont("Segoe UI", 10),
+            controls, text="Mỗi file → xử lý lần lượt", variable=self.mode_var,
+            value="separate_invoices", command=self.on_invoice_mode_changed,
+            text_color="#34495E", font=ctk.CTkFont("Segoe UI", 10),
         ).pack(side="left", padx=10)
         self.analyze_button = ctk.CTkButton(
             controls, text="Đọc lại", command=self.analyze, height=36, corner_radius=9,
@@ -846,6 +849,13 @@ class InvoiceDesktopApp:
         if not selected:
             return
         index = int(selected[0])
+        if self.mode_var.get() == "separate_invoices" and index != 0 and self.files:
+            self.file_list.selection_clear(0, "end")
+            self.file_list.selection_set(0)
+            self.file_list.activate(0)
+            self.show_file_preview(self.files[0], file_index=0)
+            self.set_status("Hãy xử lý và xuất hóa đơn hiện tại trước; app sẽ tự chuyển sang file tiếp theo.")
+            return
         if 0 <= index < len(self.files):
             self.show_file_preview(self.files[index], file_index=index)
 
@@ -905,8 +915,9 @@ class InvoiceDesktopApp:
         self.draw_preview_image()
 
     def update_preview_navigation(self):
-        has_previous_file = self.preview_file_index > 0
-        has_next_file = self.preview_file_index < len(self.files) - 1
+        separate_queue = self.mode_var.get() == "separate_invoices"
+        has_previous_file = not separate_queue and self.preview_file_index > 0
+        has_next_file = not separate_queue and self.preview_file_index < len(self.files) - 1
         has_pages = self.preview_document is not None and self.preview_page_count > 1
         self.preview_prev_button.configure(
             state="normal" if has_previous_file or (has_pages and self.preview_page_index > 0) else "disabled"
@@ -1022,15 +1033,61 @@ class InvoiceDesktopApp:
             return
         self.files = list(selected)[:10]
         self.results = []
-        self.file_list.delete(0, "end")
-        for index, path in enumerate(self.files, start=1):
-            self.file_list.insert("end", f"{index}. {Path(path).name}")
+        self.refresh_file_queue()
         self.file_list.selection_set(0)
         self.file_list.activate(0)
         self.show_file_preview(self.files[0])
         self.refresh_results()
         self.set_status(f"Đã chọn {len(self.files)} file. Đang tự động đọc hóa đơn...")
         self.root.after(80, self.analyze)
+
+    def on_invoice_mode_changed(self):
+        if not self.files:
+            return
+        self.results = []
+        self.refresh_file_queue()
+        self.file_list.selection_set(0)
+        self.file_list.activate(0)
+        self.show_file_preview(self.files[0], file_index=0)
+        self.refresh_results()
+        if self.busy:
+            self.reanalyze_after_busy = True
+        else:
+            self.set_status("Đã đổi cách xử lý. Đang đọc lại hóa đơn...")
+            self.root.after(80, self.analyze)
+
+    def refresh_file_queue(self):
+        """Hiển thị rõ file hiện tại và các hóa đơn đang chờ xử lý."""
+        self.file_list.delete(0, "end")
+        separate = self.mode_var.get() == "separate_invoices"
+        for index, path in enumerate(self.files, start=1):
+            if separate:
+                state = "ĐANG XỬ LÝ" if index == 1 else "CHỜ"
+                self.file_list.insert("end", f"{index}. [{state}] {Path(path).name}")
+            else:
+                self.file_list.insert("end", f"{index}. {Path(path).name}")
+
+    def advance_separate_invoice(self, exported_path):
+        """Hoàn tất hóa đơn đầu hàng đợi rồi tự động đọc hóa đơn kế tiếp."""
+        exported_name = Path(self.files[0]).name if self.files else "hóa đơn hiện tại"
+        if self.files:
+            self.files.pop(0)
+        self.results = []
+        self.invoice_discount_value_var.set("")
+        self.invoice_discount_type_var.set("VND")
+        self.refresh_file_queue()
+        self.refresh_results()
+        if not self.files:
+            self.clear_preview()
+            self.set_status(f"Đã xuất hóa đơn {exported_name}: {exported_path}. Đã xử lý xong toàn bộ danh sách.")
+            return
+        self.file_list.selection_set(0)
+        self.file_list.activate(0)
+        self.show_file_preview(self.files[0], file_index=0)
+        self.set_status(
+            f"Đã xuất hóa đơn {exported_name}. Còn {len(self.files)} hóa đơn; đang đọc file tiếp theo..."
+        )
+        self.root.after(120, self.analyze)
 
     def clear_files(self):
         if self.busy:
@@ -1062,6 +1119,8 @@ class InvoiceDesktopApp:
         database = Path(self.db_var.get().strip())
         if not database.exists():
             return messagebox.showerror(APP_NAME, "Không tìm thấy database sản phẩm đã chọn.")
+        mode = self.mode_var.get()
+        paths_to_analyze = self.files[:1] if mode == "separate_invoices" else list(self.files)
         self.busy = True
         self.analyze_button.configure(state="disabled", text="Đang đọc...")
         self.set_status("GPT đang đọc hóa đơn. Bạn có thể chờ trong cửa sổ này...")
@@ -1072,7 +1131,7 @@ class InvoiceDesktopApp:
                     api_key, database, DATA_DIR / "learning_rules.json",
                     DATA_DIR / "price_history.json", self.model_var.get().strip(),
                 )
-                result = invoice_engine.analyze_paths(self.files, self.mode_var.get())
+                result = invoice_engine.analyze_paths(paths_to_analyze, mode)
                 self.root.after(0, lambda: self.analysis_done(result))
             except Exception as exc:
                 self.root.after(0, lambda: self.analysis_failed(str(exc)))
@@ -1082,14 +1141,31 @@ class InvoiceDesktopApp:
     def analysis_done(self, result):
         self.busy = False
         self.analyze_button.configure(state="normal", text="Đọc lại")
+        if self.reanalyze_after_busy:
+            self.reanalyze_after_busy = False
+            self.results = []
+            self.refresh_results()
+            self.set_status("Đã đổi cách xử lý. Đang đọc lại hóa đơn...")
+            self.root.after(80, self.analyze)
+            return
         self.results = result
         self.refresh_results()
         unmatched = sum(not item.get("matched") for item in result)
-        self.set_status(f"Đã đọc xong {len(result)} mặt hàng. Còn {unmatched} dòng cần kiểm tra.")
+        if self.mode_var.get() == "separate_invoices" and self.files:
+            self.set_status(
+                f"Đã đọc hóa đơn hiện tại: {Path(self.files[0]).name} • {len(result)} mặt hàng • "
+                f"còn {unmatched} dòng cần kiểm tra • {max(len(self.files) - 1, 0)} hóa đơn đang chờ."
+            )
+        else:
+            self.set_status(f"Đã đọc xong {len(result)} mặt hàng. Còn {unmatched} dòng cần kiểm tra.")
 
     def analysis_failed(self, error):
         self.busy = False
         self.analyze_button.configure(state="normal", text="Đọc lại")
+        if self.reanalyze_after_busy:
+            self.reanalyze_after_busy = False
+            self.root.after(80, self.analyze)
+            return
         self.set_status("Đọc hóa đơn không thành công.")
         messagebox.showerror(APP_NAME, error)
 
@@ -1116,7 +1192,10 @@ class InvoiceDesktopApp:
         quantity = sum(float(item.get("qty") or 0) for item in self.results)
         total = sum(float(item.get("qty") or 0) * float(item.get("price") or 0) for item in self.results)
         self.summary_var.set(f"{len(self.results)} mặt hàng  •  Tổng SL {quantity:g}  •  {money(total)}")
-        self.metric_files_var.set(str(len(self.files)))
+        if self.mode_var.get() == "separate_invoices" and self.files:
+            self.metric_files_var.set(f"1 / {len(self.files)}")
+        else:
+            self.metric_files_var.set(str(len(self.files)))
         self.metric_items_var.set(str(len(self.results)))
         self.metric_qty_var.set(f"{quantity:g}")
         self.metric_total_var.set(money(total))
@@ -1601,72 +1680,50 @@ class InvoiceDesktopApp:
                     "Cần file danh sách sản phẩm Sapo mới nhất để tạo SKU trước khi nhập đơn hàng.",
                 )
             product_source = Path(selected_source)
-        if self.mode_var.get() == "separate_invoices" and len(groups) > 1:
-            folder = filedialog.askdirectory(title="Chọn thư mục lưu các file Excel")
-            if not folder:
-                return
-            if product_updates_required and auto_sync and not self.sync_results_to_sapo():
-                return
-            if product_source:
-                try:
-                    export_sapo_product_csv(
-                        self.results, product_source, Path(folder) / "BUOC-1-cap-nhat-san-pham-sapo.csv"
-                    )
-                    export_product_updates(
-                        self.results, Path(folder) / "bang-kiem-tra-sku-gia-ban.xlsx"
-                    )
-                except Exception as exc:
-                    return messagebox.showerror(APP_NAME, f"Không tạo được file cập nhật sản phẩm: {exc}")
-            for position, group in enumerate(groups.values(), start=1):
-                summary = group[0].get("invoice_summary") or {}
-                # Tên file cũng dùng số hóa đơn đã làm sạch, khớp với mã trong Excel.
-                number = "".join(re.findall(r"\d+", str(summary.get("invoice_number") or ""))) or str(position)
-                export_sapo_excel(
-                    group, Path(folder) / f"BUOC-2-don-nhap-hang-{number}.xlsx",
-                    BASE_DIR / "sapo_import_template.xlsx",
+        summary = self.results[0].get("invoice_summary") or {}
+        invoice_number = "".join(re.findall(r"\d+", str(summary.get("invoice_number") or "")))
+        default_name = (
+            f"BUOC-2-don-nhap-hang-{invoice_number}.xlsx"
+            if invoice_number else "BUOC-2-don-nhap-hang-sapo.xlsx"
+        )
+        destination = filedialog.asksaveasfilename(
+            title="Lưu file Excel", defaultextension=".xlsx",
+            initialfile=default_name, filetypes=[("Excel", "*.xlsx")],
+        )
+        if not destination:
+            return
+        if product_updates_required and auto_sync and not self.sync_results_to_sapo():
+            return
+        if product_source:
+            try:
+                export_sapo_product_csv(
+                    self.results,
+                    product_source,
+                    Path(destination).with_name("BUOC-1-cap-nhat-san-pham-sapo.csv"),
                 )
-            exported_count = len(groups)
-            self.clear_after_export(f"Đã xuất {exported_count} file Excel vào: {folder}. Danh sách đã được làm mới.")
-            messagebox.showinfo(
-                APP_NAME,
-                (
-                    "Đã đồng bộ sản phẩm/giá và xuất các file đơn nhập hàng. "
-                    "Hãy tải từng file Excel lên mục Đơn nhập hàng của Sapo."
-                    if auto_sync else
-                    "Đã xuất xong. Hãy nhập BUOC-1-cap-nhat-san-pham-sapo.csv vào danh sách sản phẩm "
-                    "và chờ Sapo hoàn tất, sau đó mới nhập các file BUOC-2 đơn nhập hàng."
-                ),
+            except Exception as exc:
+                return messagebox.showerror(APP_NAME, f"Không tạo được file cập nhật sản phẩm: {exc}")
+        export_sapo_excel(self.results, destination, BASE_DIR / "sapo_import_template.xlsx")
+        if not auto_sync:
+            update_destination = Path(destination).with_name(
+                f"cap-nhat-sku-gia-ban-{Path(destination).stem}.xlsx"
             )
+            export_product_updates(self.results, update_destination)
+
+        separate_queue = self.mode_var.get() == "separate_invoices"
+        remaining = max(len(self.files) - 1, 0) if separate_queue else 0
+        message = (
+            f"Đã xuất hóa đơn hiện tại thành một file Excel riêng.\n\n"
+            f"Ứng dụng sẽ tự chuyển sang hóa đơn tiếp theo ({remaining} file còn lại)."
+            if remaining else
+            "Đã đồng bộ sản phẩm/giá cần thay đổi và xuất file đơn nhập hàng.\n\n"
+            "Sapo chưa công bố API nhập file đơn nhập, nên hãy tải file Excel này lên mục Đơn nhập hàng."
+        )
+        messagebox.showinfo(APP_NAME, message)
+        if separate_queue:
+            self.advance_separate_invoice(destination)
         else:
-            destination = filedialog.asksaveasfilename(
-                title="Lưu file Excel", defaultextension=".xlsx",
-                initialfile="BUOC-2-don-nhap-hang-sapo.xlsx", filetypes=[("Excel", "*.xlsx")],
-            )
-            if not destination:
-                return
-            if product_updates_required and auto_sync and not self.sync_results_to_sapo():
-                return
-            if product_source:
-                try:
-                    export_sapo_product_csv(
-                        self.results,
-                        product_source,
-                        Path(destination).with_name("BUOC-1-cap-nhat-san-pham-sapo.csv"),
-                    )
-                except Exception as exc:
-                    return messagebox.showerror(APP_NAME, f"Không tạo được file cập nhật sản phẩm: {exc}")
-            export_sapo_excel(self.results, destination, BASE_DIR / "sapo_import_template.xlsx")
-            if not auto_sync:
-                update_destination = Path(destination).with_name(
-                    f"cap-nhat-sku-gia-ban-{Path(destination).stem}.xlsx"
-                )
-                export_product_updates(self.results, update_destination)
             self.clear_after_export(f"Đã xuất: {destination}. Danh sách đã được làm mới.")
-            messagebox.showinfo(
-                APP_NAME,
-                "Đã đồng bộ sản phẩm/giá cần thay đổi và xuất file đơn nhập hàng.\n\n"
-                "Sapo chưa công bố API nhập file đơn nhập, nên hãy tải file Excel này lên mục Đơn nhập hàng.",
-            )
 
     def sync_results_to_sapo(self):
         sapo_config = self.get_sapo_config()
