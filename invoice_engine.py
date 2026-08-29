@@ -193,6 +193,13 @@ class ProductIndex:
             if not variant_id or not name:
                 continue
             item = dict(raw)
+            if not str(item.get("image_url") or "").strip():
+                image = item.get("image") if isinstance(item.get("image"), dict) else {}
+                images = item.get("images") if isinstance(item.get("images"), list) else []
+                image_url = image.get("src") or image.get("url") or item.get("image_src")
+                if not image_url and images and isinstance(images[0], dict):
+                    image_url = images[0].get("src") or images[0].get("url")
+                item["image_url"] = str(image_url or "").strip()
             item["variant_id"] = variant_id
             item["_normalized"] = normalize_text(name)
             item["_numbers"] = number_tokens(item["_normalized"])
@@ -981,6 +988,9 @@ def public_suggestion(candidate):
         "name": item["name"],
         "sku": item.get("sku", ""),
         "barcode": item.get("barcode", ""),
+        "product_id": item.get("product_id"),
+        "unit_name": item.get("unit_name", ""),
+        "image_url": item.get("image_url", ""),
         "search_query": item.get("sku") or item.get("barcode") or item["name"],
         "prices": item.get("prices", []),
         "cost": item.get("cost", 0),

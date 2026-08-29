@@ -1266,6 +1266,8 @@ class InvoiceDesktopApp:
                 create_new_var.set(False)
                 sku_var.set(str(chosen.get("sku") or ""))
                 barcode_var.set(str(chosen.get("barcode") or ""))
+                unit_var.set(str(chosen.get("unit_name") or "Cái"))
+                image_url_var.set(str(chosen.get("image_url") or ""))
                 new_sale_var.set(str(chosen.get("price") or 0))
 
         combo.bind("<<ComboboxSelected>>", select_suggestion)
@@ -1291,7 +1293,8 @@ class InvoiceDesktopApp:
             frame,
             text="🔎 Tìm trong toàn bộ danh mục Sapo...",
             command=lambda: self.open_catalog_search(
-                dialog, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog, new_sale_var
+                dialog, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog,
+                new_sale_var, unit_var, image_url_var
             ),
         ).grid(row=3, column=1, sticky="w", pady=(0, 8))
         ttk.Label(frame, text="Mã SKU bắt buộc:").grid(row=4, column=0, sticky="w", pady=6)
@@ -1364,8 +1367,9 @@ class InvoiceDesktopApp:
             elif chosen:
                 item.update({
                     "matched": True, "variant_id": chosen.get("variant_id"),
+                    "product_id": chosen.get("product_id") or item.get("product_id"),
                     "new_product": False,
-                    "sapo_name": chosen.get("name"), "search_query": chosen.get("search_query", ""),
+                    "sapo_name": selected_name, "search_query": chosen.get("search_query", ""),
                     "sku": chosen.get("sku", ""), "barcode": chosen.get("barcode", ""), "confidence": 1.0,
                     "system_cost": chosen.get("cost", 0), "system_sale_price": chosen.get("price", 0),
                     "match_reason": "Người dùng xác nhận trong ứng dụng desktop.",
@@ -1444,18 +1448,17 @@ class InvoiceDesktopApp:
 
     def suggest_next_numeric_sku(self):
         """Đề xuất mã tăng dần theo SKU số đang có, tránh ảnh hưởng barcode dài/GTIN."""
-        numeric_skus = []
+        used_skus = set()
         for product in invoice_engine.product_index.products:
             sku = str(product.get("sku") or "").strip()
-            # SKU nội bộ đang dùng là mã ngắn; bỏ qua barcode/GTIN dài 8+ số.
-            if sku.isdigit() and 3 <= len(sku) <= 6:
-                numeric_skus.append(int(sku))
-        # 14441 là mốc SKU nội bộ hiện tại. Luôn tăng tiếp từ mốc này hoặc
-        # từ SKU lớn nhất đang có, đồng thời nhớ mã đã cấp trong phiên hiện tại
-        # để mở hộp thoại liên tiếp không bị lặp lại.
-        highest = max([14441, *numeric_skus])
-        cursor = int(getattr(self, "_next_numeric_sku", highest))
-        candidate = max(highest, cursor) + 1
+            if sku:
+                used_skus.add(sku)
+        # Dãy mã mới dành riêng bắt đầu từ 14444. Không lấy SKU số lớn nhất
+        # vì danh mục còn có các mã nhà cung cấp/barcode như 142145 hoặc GTIN.
+        cursor = max(14443, int(getattr(self, "_next_numeric_sku", 14443)))
+        candidate = cursor + 1
+        while str(candidate) in used_skus:
+            candidate += 1
         self._next_numeric_sku = candidate
         return str(candidate)
 
@@ -1528,7 +1531,8 @@ class InvoiceDesktopApp:
         return outcome or None
 
     def open_catalog_search(
-        self, parent, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog, sale_var=None
+        self, parent, item, product_var, sku_var, barcode_var, create_new_var, selected_catalog,
+        sale_var=None, unit_var=None, image_url_var=None
     ):
         dialog = tk.Toplevel(parent)
         dialog.title("Tìm toàn bộ danh mục Sapo")
@@ -1583,6 +1587,10 @@ class InvoiceDesktopApp:
             product_var.set(product.get("name", ""))
             sku_var.set(product.get("sku", ""))
             barcode_var.set(product.get("barcode", ""))
+            if unit_var is not None:
+                unit_var.set(str(product.get("unit_name") or "Cái"))
+            if image_url_var is not None:
+                image_url_var.set(str(product.get("image_url") or ""))
             if sale_var is not None:
                 sale_var.set(str(product.get("price") or 0))
             create_new_var.set(False)
@@ -1656,6 +1664,9 @@ class InvoiceDesktopApp:
             item.get("generated_sku")
             or item.get("sku_changed")
             or item.get("barcode_changed")
+            or item.get("product_name_changed")
+            or item.get("unit_changed")
+            or item.get("image_url_changed")
             or round(float(item.get("new_sale_price") or item.get("system_sale_price") or 0))
             != round(float(item.get("system_sale_price") or 0))
             for item in self.results
