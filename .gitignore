@@ -3,6 +3,7 @@
 .vendor/
 .vendor-v22/
 .vendor-v26/
+vendor-runtime/
 .python314-nuget/
 .python314-src-extract/
 .pythonbuild/
